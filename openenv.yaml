@@ -1,0 +1,17 @@
+# openenv.yaml
+name: sre-bench
+description: "Production incident response benchmark for SRE agents. Agents must diagnose and remediate microservice outages."
+version: "1.0.0"
+tasks:
+  - id: easy_restart
+    name: "Service Restart"
+    description: "Diagnose and restart a single OOMKilled service."
+    difficulty: easy
+  - id: medium_cascade
+    name: "Cascading Failure"
+    description: "Trace and fix a cascading failure across dependent services caused by a database bottleneck."
+    difficulty: medium
+  - id: hard_intermittent
+    name: "Intermittent Nightmare"
+    description: "Diagnose intermittent latency spikes caused by subtle cache fragmentation."
+    difficulty: hard

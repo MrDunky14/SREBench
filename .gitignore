@@ -1,0 +1,62 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.python-version
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Test / coverage / cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+logs/
+
+# Local env files / secrets
+.env
+.env.*
+*.pem
+*.key
+
+# FastAPI / runtime temp
+*.pid
+*.sqlite3
+
+# Docker
+docker-compose.override.yml
+
+# Project-specific outputs
+sre-bench/.baseline_runs/
+sre-bench/.openenv/
