@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SREBench - Production Incident Response</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 60px 40px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            color: #667eea;
+        }
+        .subtitle {
+            font-size: 1.3em;
+            color: #666;
+            margin-bottom: 40px;
+        }
+        .description {
+            font-size: 1.1em;
+            color: #555;
+            margin-bottom: 40px;
+            line-height: 1.8;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 40px 0;
+            text-align: left;
+        }
+        .feature {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .feature h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .feature p {
+            color: #666;
+            font-size: 0.95em;
+        }
+        .buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 40px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 12px 30px;
+            font-size: 1em;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.2);
+        }
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+        .btn-secondary:hover {
+            background: #f8f9fa;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            margin: 40px 0;
+        }
+        .stat {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            color: #666;
+            margin-top: 10px;
+        }
+        .footer {
+            margin-top: 60px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #999;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚨 SREBench</h1>
+        <p class="subtitle">Production Incident Response Benchmark</p>
+        
+        <p class="description">
+            Train and evaluate AI agents on realistic microservice incident response. Diagnose root causes across service dependencies and execute remediation under SLA pressure.
+        </p>
+        
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value">5</div>
+                <div class="stat-label">Incident Scenarios</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">6</div>
+                <div class="stat-label">Microservices</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">7</div>
+                <div class="stat-label">API Endpoints</div>
+            </div>
+        </div>
+        
+        <div class="features">
+            <div class="feature">
+                <h3>📋 5 Scenarios</h3>
+                <p>Easy restart → hard hidden issues. Escalating difficulty for comprehensive evaluation.</p>
+            </div>
+            <div class="feature">
+                <h3>🎯 Dense Rewards</h3>
+                <p>5-component reward function: investigation, diagnosis, remediation, time penalty, bonus.</p>
+            </div>
+            <div class="feature">
+                <h3>⚡ Production Real</h3>
+                <p>OOM kills, connection exhaustion, cache fragmentation. Real failure modes.</p>
+            </div>
+            <div class="feature">
+                <h3>🏆 Fair Grading</h3>
+                <p>Solution caching for reproducibility. No artificial penalties, earned variance.</p>
+            </div>
+            <div class="feature">
+                <h3>📊 Leaderboard</h3>
+                <p>Track multiple agent sessions. Compare strategies and performance.</p>
+            </div>
+            <div class="feature">
+                <h3>🔗 OpenEnv</h3>
+                <p>Standard interface for all RL environments. Easy integration.</p>
+            </div>
+        </div>
+        
+        <div class="buttons">
+            <a href="/docs" class="btn btn-primary">📖 API Documentation</a>
+            <a href="/dashboard" class="btn btn-primary">📊 Interactive Dashboard</a>
+            <a href="/leaderboard" class="btn btn-secondary">🏆 Leaderboard</a>
+        </div>
+        
+        <div class="footer">
+            <p>🚀 Ready to solve incidents? Start with <code>/reset</code> endpoint</p>
+            <p style="margin-top: 10px;">GitHub: <a href="https://github.com/MrDunky14/SREBench" style="color: #667eea;">MrDunky14/SREBench</a></p>
+        </div>
+    </div>
+</body>
+</html>

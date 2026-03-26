@@ -1,7 +1,8 @@
 """FastAPI server for SREBench environment."""
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
-from typing import Dict, Any
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from typing import Dict, Any, List
 from .models import IncidentAction, IncidentObservation, IncidentReward, IncidentState
 from .environment import SREBenchEnvironment, INCIDENTS
 import sys
@@ -10,24 +11,74 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from graders.easy import grade_easy
 from graders.medium import grade_medium
 from graders.hard import grade_hard
+from graders.expert_network import grade_expert_network
+from graders.expert_replica import grade_expert_replica
 
 app = FastAPI(title="SREBench Environment")
 
 # Global environment instance
 env = SREBenchEnvironment()
 episode_history = []
+leaderboard = {}  # {task_id: [{"agent_name": "", "score": 0.0, "steps": 0, "timestamp": ""}, ...]}
 
 GRADERS = {
     "easy_restart": grade_easy,
     "medium_cascade": grade_medium,
     "hard_intermittent": grade_hard,
+    "expert_network_partition": grade_expert_network,
+    "expert_database_replica_sync": grade_expert_replica,
 }
+
+
+# Mount static files (UI)
+static_dir = Path(__file__).parent.parent
+if (static_dir / "index.html").exists():
+    app.mount("/ui", StaticFiles(directory=str(static_dir), html=True), name="static")
 
 
 @app.get("/")
 def health():
     """Health check endpoint."""
     return {"status": "ok", "message": "SREBench environment is running"}
+
+
+@app.get("/dashboard.html")
+def dashboard():
+    """Serve the interactive dashboard."""
+    dashboard_path = Path(__file__).parent.parent / "dashboard.html"
+    if dashboard_path.exists():
+        return FileResponse(str(dashboard_path), media_type="text/html")
+    raise HTTPException(status_code=404, detail="Dashboard not found")
+
+
+@app.get("/index.html")
+def home():
+    """Serve the home page."""
+    index_path = Path(__file__).parent.parent / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path), media_type="text/html")
+    raise HTTPException(status_code=404, detail="Home page not found")
+
+
+@app.get("/docs-api")
+def api_docs():
+    """API documentation endpoint."""
+    return {
+        "title": "SREBench API Documentation",
+        "description": "OpenEnv-compliant environment for SRE incident response training",
+        "version": "1.0.0",
+        "endpoints": {
+            "GET /": "Health check",
+            "GET /tasks": "List available incident scenarios",
+            "POST /reset": "Initialize a new episode",
+            "POST /step": "Execute an action in the environment",
+            "GET /state": "Get full internal state",
+            "GET /grader": "Grade the current episode",
+            "GET /leaderboard": "View test leaderboards",
+            "POST /baseline": "Run baseline agent strategy",
+            "GET /dashboard.html": "Interactive testing dashboard",
+        },
+    }
 
 
 @app.get("/tasks")
@@ -52,6 +103,18 @@ def get_tasks():
                 "name": "Intermittent Nightmare",
                 "description": "Diagnose intermittent latency spikes caused by subtle cache fragmentation.",
                 "difficulty": "hard",
+            },
+            {
+                "id": "expert_network_partition",
+                "name": "Network Partition Crisis",
+                "description": "Detect and handle network partition between primary and replica databases.",
+                "difficulty": "expert",
+            },
+            {
+                "id": "expert_database_replica_sync",
+                "name": "Database Sync Failure",
+                "description": "Fix database replica sync failure caused by WAL synchronization issues.",
+                "difficulty": "expert",
             },
         ],
         "action_schema": IncidentAction.schema(),
@@ -87,14 +150,17 @@ def step_env(action: IncidentAction):
     if not env.infrastructure:
         raise HTTPException(status_code=400, detail="Environment not initialized. Call /reset first.")
     
-    obs, reward, done, info = env.step(action)
-    
-    return {
-        "observation": obs.dict(),
-        "reward": reward.dict(),
-        "done": done,
-        "info": info,
-    }
+    try:
+        obs, reward, done, info = env.step(action)
+        
+        return {
+            "observation": obs.dict(),
+            "reward": reward.dict(),
+            "done": done,
+            "info": info,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Step execution failed: {str(e)}")
 
 
 @app.get("/state")
@@ -108,7 +174,7 @@ def get_state():
 
 
 @app.get("/grader")
-def grade_episode(task_id: str = None):
+def grade_episode(task_id: str = None, agent_name: str = "anonymous"):
     """Grade the current episode."""
     if not env.infrastructure:
         raise HTTPException(status_code=400, detail="No episode in progress.")
@@ -118,20 +184,57 @@ def grade_episode(task_id: str = None):
     if task_id not in GRADERS:
         raise HTTPException(status_code=400, detail=f"No grader for task: {task_id}")
     
-    grader_fn = GRADERS[task_id]
+    try:
+        grader_fn = GRADERS[task_id]
+        
+        # Pass environment to grader so it can access solution_cache
+        score = grader_fn(env)
+        
+        # Add to leaderboard
+        if task_id not in leaderboard:
+            leaderboard[task_id] = []
+        
+        leaderboard[task_id].append({
+            "agent_name": agent_name,
+            "score": score,
+            "steps": env.step_count,
+            "episode_id": env.episode_id,
+            "timestamp": str(__import__('datetime').datetime.now().isoformat()),
+        })
+        
+        # Sort leaderboard by score descending
+        leaderboard[task_id].sort(key=lambda x: x["score"], reverse=True)
+        
+        return {
+            "task_id": task_id,
+            "episode_id": env.episode_id,
+            "score": score,
+            "steps": env.step_count,
+            "cumulative_reward": env.cumulative_reward,
+            "incident_resolved": env._check_incident_resolved(),
+            "diagnosis_submitted": env.diagnosis_submitted,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Grading failed: {str(e)}")
+
+
+@app.get("/leaderboard")
+def get_leaderboard(task_id: str = None):
+    """Get leaderboard for a specific task or all tasks."""
+    if task_id:
+        if task_id not in leaderboard:
+            return {"task_id": task_id, "entries": []}
+        return {
+            "task_id": task_id,
+            "entries": leaderboard[task_id][:10],  # Top 10
+        }
     
-    # Pass environment to grader so it can access solution_cache
-    score = grader_fn(env)
+    # Return all leaderboards
+    result = {}
+    for tid in INCIDENTS.keys():
+        result[tid] = leaderboard.get(tid, [])[:10]
     
-    return {
-        "task_id": task_id,
-        "episode_id": env.episode_id,
-        "score": score,
-        "steps": env.step_count,
-        "cumulative_reward": env.cumulative_reward,
-        "incident_resolved": env._check_incident_resolved(),
-        "diagnosis_submitted": env.diagnosis_submitted,
-    }
+    return {"leaderboards": result}
 
 
 @app.post("/baseline")

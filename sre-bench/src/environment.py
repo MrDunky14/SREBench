@@ -33,6 +33,22 @@ INCIDENTS = {
         "description": "Subtle cache fragmentation causing intermittent fallback to DB",
         "max_steps": 30,
     },
+    "expert_network_partition": {
+        "root_cause_service": "database-replica",
+        "fault_type": "network_partition",
+        "ground_truth_diagnosis": "network_partition",
+        "ground_truth_fix": "failover",
+        "description": "Network partition between primary and replica causing replication lag",
+        "max_steps": 35,
+    },
+    "expert_database_replica_sync": {
+        "root_cause_service": "database-primary",
+        "fault_type": "database_replica_sync_failure",
+        "ground_truth_diagnosis": "database_replica_sync_failure",
+        "ground_truth_fix": "restart",
+        "description": "Database replica sync failure causing data inconsistency",
+        "max_steps": 35,
+    },
 }
 
 

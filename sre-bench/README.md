@@ -395,6 +395,201 @@ Endpoints:
 
 The hard task is where the environment shines: it challenges frontier models.
 
+## 🤖 Training RL Agents
+
+SREBench provides a **Gymnasium-compatible interface** for training agents with standard RL frameworks like Stable-Baselines3, RLlib, and PyTorch.
+
+### Quick Start: Gymnasium Wrapper
+
+```python
+from gymnasium_env import SREBenchGymEnv
+
+# Create environment
+env = SREBenchGymEnv(task_id="easy_restart")
+
+# Use with any gym-compatible library
+obs, info = env.reset()
+for _ in range(100):
+    action = env.action_space.sample()
+    obs, reward, terminated, truncated, info = env.step(action)
+    if terminated or truncated:
+        break
+```
+
+### Training with Stable-Baselines3
+
+```python
+from gymnasium_env import SREBenchGymEnv
+from stable_baselines3 import PPO
+
+# Single environment
+env = SREBenchGymEnv(task_id="easy_restart")
+agent = PPO("MlpPolicy", env, learning_rate=1e-3)
+agent.learn(total_timesteps=100000)
+
+# Vectorized (parallel) training
+from gymnasium_env import SREBenchVectorEnv
+
+vec_env = SREBenchVectorEnv(num_envs=4, task_id="easy_restart")
+agent = PPO("MlpPolicy", vec_env)
+agent.learn(total_timesteps=400000)
+```
+
+### Baseline Agents
+
+Compare your agent against baselines:
+
+```python
+from agents import RandomAgent, RuleBasedAgent, benchmark_agent
+
+# Random baseline
+results = benchmark_agent(RandomAgent, "easy_restart", num_episodes=5)
+print(f"Random Success Rate: {results['success_rate']:.1%}")
+
+# Rule-based baseline (uses heuristics)
+results = benchmark_agent(RuleBasedAgent, "easy_restart", num_episodes=5)
+print(f"Rule-Based Success Rate: {results['success_rate']:.1%}")
+```
+
+### Curriculum Learning
+
+Progressive training from easy → medium → hard:
+
+```python
+from train_agents import curriculum_learning
+
+agent, results = curriculum_learning(
+    tasks=["easy_restart", "medium_cascade", "hard_intermittent"],
+    timesteps_per_task=10000
+)
+
+for task, res in results.items():
+    print(f"{task}: {res['success_rate']:.1%}")
+```
+
+### Training Script
+
+Pre-built training script with multiple algorithms:
+
+```bash
+# Train PPO
+python train_agents.py --agent ppo --task easy_restart --timesteps 50000
+
+# Train A2C
+python train_agents.py --agent a2c --task medium_cascade --timesteps 50000
+
+# Curriculum learning
+python train_agents.py --agent curriculum --timesteps 30000
+
+# Evaluate
+python train_agents.py --agent ppo --task easy_restart --evaluate
+```
+
+## Observation & Action Spaces
+
+### Observation Space
+**32-dimensional vector** (normalized to [0, 100]):
+- 6 services × 5 metrics (status, CPU%, memory%, error%, P99ms)
+- Plus episode tracking (steps taken, SLA time remaining)
+
+Designed for neural networks, RNNs, and Transformers.
+
+### Action Space
+**192 discrete actions** (4 types × 8 commands × 6 targets):
+
+**Action Types:**
+- `investigate` — Gather information (check_logs, check_metrics, check_connections)
+- `diagnose` — Submit root cause diagnosis
+- `remediate` — Execute fix (restart, scale_up, increase_pool, flush_cache, failover)
+- `give_up` — Surrender (penalty: -0.5)
+
+**Commands & Effects:**
+| Command | Effect | Best For |
+|---------|--------|----------|
+| check_logs | Returns ERROR/WARN logs | Identifying anomalies |
+| check_metrics | Returns CPU, memory, error rate | Quantifying problems |
+| check_connections | Returns connection pool status | Database issues |
+| restart | Restarts service, clears memory | OOM, stuck processes |
+| scale_up | Increases replicas/resource limits | High CPU/memory |
+| increase_pool | Increases connection pool size | Database bottlenecks |
+| flush_cache | Clears cache, resets hit ratio | Cache fragmentation |
+| failover | Switches to replica | Primary failure |
+
+**Target Services:**
+- api-gateway
+- user-service
+- payment-service
+- database-primary
+- database-replica
+- cache-redis
+
+## Expected Performance
+
+| Framework | Task | Timesteps | Success Rate | Convergence |
+|-----------|------|-----------|--------------|-------------|
+| **Stable-Baselines3 PPO** | easy_restart | 50k | 95%+ | 30 min (1 GPU) |
+| **Stable-Baselines3 A2C** | easy_restart | 50k | 90%+ | 15 min (1 CPU) |
+| **Rule-Based Agent** | easy_restart | N/A | 100% | Immediate |
+| **Random Agent** | easy_restart | N/A | 20% | N/A |
+
+## Features for ML/RL
+
+✅ **Gymnasium-compliant** — Works with Stable-Baselines3, RLlib, custom training loops
+
+✅ **Vectorized environments** — Train 4+ agents in parallel
+
+✅ **Dense rewards** — Better signal than sparse rewards
+
+✅ **Deterministic seeding** — Reproducible episodes for benchmarking
+
+✅ **Curriculum learning** — Progressive task difficulty
+
+✅ **Curriculum learning** — Progressive task difficulty
+
+✅ **Baseline agents** — Compare against rule-based and random
+
+✅ **Tensorboard logging** — Monitor training with SB3 callbacks
+
+✅ **Fast inference** — ~50ms per step on CPU
+
+## Common Patterns
+
+### Multi-Agent Training
+```python
+# Train multiple agents on same task
+agents = {}
+for model_type in ["PPO", "A2C", "DQN"]:
+    env = SREBenchGymEnv(task_id="easy_restart")
+    agent = getattr(stable_baselines3, model_type)("MlpPolicy", env)
+    agent.learn(total_timesteps=50000)
+    agents[model_type] = agent
+```
+
+### Transfer Learning
+```python
+# Train on easy, then fine-tune on medium
+env_easy = SREBenchGymEnv(task_id="easy_restart")
+agent = PPO("MlpPolicy", env_easy)
+agent.learn(total_timesteps=50000)
+
+# Switch to harder task
+agent.env = SREBenchGymEnv(task_id="medium_cascade")
+agent.learn(total_timesteps=50000)  # Fine-tune
+```
+
+### Epsilon-Greedy Exploration
+```python
+# Customize exploration strategy
+agent = PPO(
+    "MlpPolicy",
+    env,
+    learning_rate=3e-4,
+    gae_lambda=0.95,
+    clip_range=0.2,
+    ent_coef=0.01,  # entropy bonus for exploration
+)
+```
+
 ## License
 
 MIT

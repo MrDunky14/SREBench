@@ -15,3 +15,11 @@ tasks:
     name: "Intermittent Nightmare"
     description: "Diagnose intermittent latency spikes caused by subtle cache fragmentation."
     difficulty: hard
+  - id: expert_network_partition
+    name: "Network Partition Crisis"
+    description: "Detect and handle network partition between primary and replica databases."
+    difficulty: expert
+  - id: expert_database_replica_sync
+    name: "Database Sync Failure"
+    description: "Fix database replica sync failure caused by WAL synchronization issues."
+    difficulty: expert

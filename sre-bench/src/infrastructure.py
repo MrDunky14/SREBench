@@ -65,6 +65,18 @@ LOG_TEMPLATES = {
         "DEBUG Evicting key {key} due to memory pressure",
         "INFO  Fallback to database for cache miss on {endpoint}",
     ],
+    "network_partition": [
+        "ERROR Cannot reach database-primary: timeout after {timeout}ms",
+        "WARN  Replication lag detected: {lag}ms (normal: <10ms)",
+        "ERROR Failed to receive ACK from replica-primary link",
+        "WARN  Read inconsistency: stale data from replica detected",
+    ],
+    "database_replica_sync_failure": [
+        "ERROR Replication failed: WAL sync failed",
+        "WARN  Replica sync lag: {lag_seconds}s (threshold: 1s)",
+        "ERROR Replication error: master down, replica cannot connect",
+        "ERROR Write failed: cannot ensure replica durability",
+    ],
 }
 
 
@@ -133,6 +145,26 @@ class Infrastructure:
             svc.latency_p99_ms = 2.0
             svc.metrics_history = {"cache_hit_ratio": 72}  # degraded from normal 98%
             self._gen_logs(service_name, fault_type)
+        
+        elif fault_type == "network_partition":
+            # Network partition between primary and replica
+            svc.status = "degraded"
+            svc.error_rate_percent = 65.0
+            svc.latency_p99_ms = 3200.0
+            svc.cpu_percent = 45.0
+            svc.memory_percent = 78.0
+            svc.metrics_history = {"replication_lag_ms": 5000}  # High lag
+            self._gen_logs(service_name, fault_type)
+        
+        elif fault_type == "database_replica_sync_failure":
+            # Database replica cannot sync
+            svc.status = "degraded"
+            svc.error_rate_percent = 35.0
+            svc.latency_p99_ms = 2100.0
+            svc.cpu_percent = 55.0
+            svc.memory_percent = 82.0
+            svc.metrics_history = {"replication_lag_seconds": 45}  # Severe lag
+            self._gen_logs(service_name, fault_type)
     
     def _propagate_failures(self, failed_service: str):
         """Services depending on failed service become degraded."""
@@ -153,18 +185,31 @@ class Infrastructure:
         templates = LOG_TEMPLATES.get(fault_type, [])
         
         for i, template in enumerate(templates[:3]):
-            msg = template.format(
-                mem=95,
-                gc_ms=250,
-                pool_pct=100,
-                max_conn=200,
-                timeout=5000,
-                n_queued=150,
-                hit_ratio=72,
-                frag_ratio=2.1,
-                key="user:12345",
-                endpoint="/api/charge",
-            )
+            # Prepare all possible format keywords
+            format_kwargs = {
+                "mem": 95,
+                "gc_ms": 250,
+                "pool_pct": 100,
+                "max_conn": 200,
+                "timeout": 5000,
+                "n_queued": 150,
+                "hit_ratio": 72,
+                "frag_ratio": 2.1,
+                "key": "user:12345",
+                "endpoint": "/api/charge",
+                "lag": "5000ms",
+                "lag_ms": 5000,
+                "lag_seconds": 45,
+                "timeout_ms": 5000,
+            }
+            
+            # Format template with available kwargs (ignore missing ones)
+            try:
+                msg = template.format(**{k: v for k, v in format_kwargs.items() if "{" + k + "}" in template})
+            except (KeyError, ValueError):
+                # Fallback if formatting fails
+                msg = template
+            
             svc.log_buffer.append(LogEntry(
                 timestamp=f"2024-01-15 03:42:{10+i:02d}",
                 level=template.split()[0],
