@@ -122,10 +122,10 @@ def get_tasks():
 
 
 @app.post("/reset")
-def reset_env(payload: Dict[str, Any]):
+def reset_env(payload: Dict[str, Any] = None):
     """Reset environment for a new episode."""
     global episode_history
-    task_id = payload.get("task_id", "easy_restart")
+    task_id = payload.get("task_id", "easy_restart") if payload else "easy_restart"
     
     if task_id not in INCIDENTS:
         raise HTTPException(status_code=400, detail=f"Unknown task: {task_id}")
