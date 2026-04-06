@@ -23,7 +23,7 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           set -e
-          git clone "https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/CreatorNeuron/sre-bench" space
+          git clone "https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/CreatorNeuron/sre-bench" /tmp/hf-space
 
       - name: Sync files to Space
         run: |
@@ -31,13 +31,14 @@ jobs:
           rsync -av --delete \
             --exclude ".git" \
             --exclude ".github" \
+            --exclude "space" \
             --exclude "__pycache__/" \
             --exclude "*.pyc" \
             --exclude "*.log" \
-            ./ space/
+            ./ /tmp/hf-space/
 
       - name: Commit and push if changed
-        working-directory: space
+        working-directory: /tmp/hf-space
         env:
           HF_USERNAME: ${{ secrets.HF_USERNAME }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
