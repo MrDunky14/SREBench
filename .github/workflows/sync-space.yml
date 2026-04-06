@@ -1,0 +1,53 @@
+name: Sync To Hugging Face Space
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  sync-space:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clone Hugging Face Space repo
+        env:
+          HF_USERNAME: ${{ secrets.HF_USERNAME }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -e
+          git clone "https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/CreatorNeuron/sre-bench" space
+
+      - name: Sync files to Space
+        run: |
+          set -e
+          rsync -av --delete \
+            --exclude ".git" \
+            --exclude ".github" \
+            --exclude "__pycache__/" \
+            --exclude "*.pyc" \
+            --exclude "*.log" \
+            ./ space/
+
+      - name: Commit and push if changed
+        working-directory: space
+        env:
+          HF_USERNAME: ${{ secrets.HF_USERNAME }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -e
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to sync"
+            exit 0
+          fi
+
+          git commit -m "Sync from GitHub main"
+          git push "https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/CreatorNeuron/sre-bench" HEAD:main
