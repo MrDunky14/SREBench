@@ -1,8 +1,8 @@
 """FastAPI server for SREBench environment."""
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from .models import IncidentAction, IncidentObservation, IncidentReward, IncidentState
 from .environment import SREBenchEnvironment, INCIDENTS
 import sys
@@ -122,7 +122,7 @@ def get_tasks():
 
 
 @app.post("/reset")
-def reset_env(payload: Dict[str, Any] = None):
+def reset_env(payload: Optional[Dict[str, Any]] = Body(default=None)):
     """Reset environment for a new episode."""
     global episode_history
     task_id = payload.get("task_id", "easy_restart") if payload else "easy_restart"
