@@ -81,6 +81,18 @@ SYSTEM_PROMPT = (
 JSON_PATTERN = re.compile(r"\{.*\}", re.DOTALL)
 
 
+def log_start(task_id: str) -> None:
+    print(f"[START] task={task_id}", flush=True)
+
+
+def log_step(step_no: int, reward: float) -> None:
+    print(f"[STEP] step={step_no} reward={reward:.3f}", flush=True)
+
+
+def log_end(task_id: str, score: float, steps: int) -> None:
+    print(f"[END] task={task_id} score={score:.3f} steps={steps}", flush=True)
+
+
 def extract_degraded_services(obs: Dict[str, Any]) -> List[Dict[str, Any]]:
     dashboard = obs.get("system_dashboard", [])
     return [svc for svc in dashboard if svc.get("status") != "healthy"]
@@ -320,13 +332,19 @@ def choose_action(client: Optional[OpenAI], task_id: str, obs: Dict[str, Any], h
 
 def run_episode(client: Optional[OpenAI], task_id: str) -> Dict[str, Any]:
     """Run a single episode with per-task step budget."""
-    reset_resp = requests.post(
-        f"{ENV_URL}/reset",
-        json={"task_id": task_id},
-        timeout=TIMEOUT_SECONDS,
-    )
-    reset_resp.raise_for_status()
-    obs = reset_resp.json()
+    log_start(task_id)
+
+    try:
+        reset_resp = requests.post(
+            f"{ENV_URL}/reset",
+            json={"task_id": task_id},
+            timeout=TIMEOUT_SECONDS,
+        )
+        reset_resp.raise_for_status()
+        obs = reset_resp.json()
+    except Exception:
+        log_end(task_id, 0.0, 0)
+        return {"task_id": task_id, "score": 0.0, "steps": 0}
 
     # Get task-specific step budget
     max_steps = STEP_BUDGETS.get(task_id, 10)
@@ -351,18 +369,23 @@ def run_episode(client: Optional[OpenAI], task_id: str) -> Dict[str, Any]:
         reward = float(result.get("reward", {}).get("value", 0.0))
         done = bool(result.get("done", False))
         history.append(f"step={step_no}, action={action}, reward={reward:+.3f}, done={done}")
+        log_step(step_no, reward)
 
-    grade_resp = requests.get(
-        f"{ENV_URL}/grader",
-        params={"task_id": task_id, "agent_name": "inference_llm"},
-        timeout=TIMEOUT_SECONDS,
-    )
-    grade_resp.raise_for_status()
-    grade = grade_resp.json()
+    try:
+        grade_resp = requests.get(
+            f"{ENV_URL}/grader",
+            params={"task_id": task_id, "agent_name": "inference_llm"},
+            timeout=TIMEOUT_SECONDS,
+        )
+        grade_resp.raise_for_status()
+        grade = grade_resp.json()
+    except Exception:
+        log_end(task_id, 0.0, len(history))
+        return {"task_id": task_id, "score": 0.0, "steps": len(history)}
 
     score = float(grade.get("score", 0.0))
     steps = int(grade.get("steps", len(history)))
-    print(f"Task {task_id}: score={score:.3f}, steps={steps}")
+    log_end(task_id, score, steps)
 
     return {"task_id": task_id, "score": score, "steps": steps}
 
@@ -386,27 +409,17 @@ def main() -> None:
     client: Optional[OpenAI] = None
     if MODEL_NAME and API_KEY:
         client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    else:
-        print("Warning: MODEL_NAME/API key missing; running heuristic fallback mode.")
 
     tasks = resolve_tasks()
     if not tasks:
         tasks = list(STEP_BUDGETS.keys())
 
-    print(f"Running inference against {ENV_URL} for tasks: {tasks}")
     results: List[Dict[str, Any]] = []
     for task_id in tasks:
-        try:
-            results.append(run_episode(client, task_id))
-        except Exception as exc:
-            print(f"Task {task_id} failed: {exc}")
+        results.append(run_episode(client, task_id))
 
     if not results:
-        print("No episodes completed successfully.")
         return
-
-    avg = sum(r["score"] for r in results) / len(results)
-    print(f"Average score: {avg:.3f}")
 
 
 if __name__ == "__main__":
