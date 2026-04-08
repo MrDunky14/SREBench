@@ -421,23 +421,16 @@ def resolve_tasks() -> List[str]:
 
 
 def main() -> None:
-    api_key = os.getenv("API_KEY", "")
-    if not API_BASE_URL:
-        print("Inference terminated gracefully: Missing API_BASE_URL", flush=True)
-        return
-    if not api_key:
-        print("Inference terminated gracefully: Missing API_KEY", flush=True)
-        return
-    if not MODEL_NAME:
-        print("Inference terminated gracefully: Missing MODEL_NAME", flush=True)
-        return
+    api_key = os.getenv("API_KEY", "") or os.getenv("HF_TOKEN", "")
 
-    client: OpenAI | None = OpenAI(base_url=API_BASE_URL, api_key=api_key)
-    try:
-        warmup_proxy_call(client)
-    except Exception:
-        # Continue with task execution; per-step calls will still be attempted.
-        pass
+    client: OpenAI | None = None
+    if API_BASE_URL and api_key and MODEL_NAME:
+        client = OpenAI(base_url=API_BASE_URL, api_key=api_key)
+        try:
+            warmup_proxy_call(client)
+        except Exception:
+            # Continue with task execution; per-step calls will still be attempted.
+            pass
 
     tasks = resolve_tasks()
     if not tasks:
