@@ -3,7 +3,7 @@
 Required environment variables:
 - API_BASE_URL: LLM API endpoint
 - MODEL_NAME: model id to use
-- API_KEY: API token for model calls
+- API_KEY or HF_TOKEN: API token for model calls
 
 Optional environment variables:
 - ENV_URL: SREBench API URL (default: http://localhost:7860)
@@ -23,9 +23,8 @@ try:
 except ImportError:
     EXPERT_SOLVER_AVAILABLE = False
 
-API_BASE_URL = os.environ["API_BASE_URL"].rstrip("/")
-MODEL_NAME = os.environ["MODEL_NAME"]
-API_KEY = os.environ["API_KEY"]
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1").rstrip("/")
+MODEL_NAME = os.getenv("MODEL_NAME", "")
 ENV_URL = os.getenv("ENV_URL", "http://localhost:7860").rstrip("/")
 TIMEOUT_SECONDS = 30
 
@@ -403,7 +402,16 @@ def resolve_tasks() -> List[str]:
 
 
 def main() -> None:
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    api_key = os.getenv("API_KEY") or os.getenv("HF_TOKEN")
+    if not api_key:
+        print("Inference terminated gracefully: Missing API_KEY or HF_TOKEN")
+        return
+
+    if not MODEL_NAME:
+        print("Inference terminated gracefully: Missing MODEL_NAME")
+        return
+
+    client = OpenAI(base_url=API_BASE_URL, api_key=api_key)
 
     tasks = resolve_tasks()
     if not tasks:
