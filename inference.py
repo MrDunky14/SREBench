@@ -3,7 +3,7 @@
 Required environment variables:
 - API_BASE_URL: LLM API endpoint
 - MODEL_NAME: model id to use
-- HF_TOKEN: API token for model calls
+- API_KEY: API token for model calls
 
 Optional environment variables:
 - ENV_URL: SREBench API URL (default: http://localhost:7860)
@@ -13,7 +13,7 @@ Optional environment variables:
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import requests
 from openai import OpenAI
@@ -23,9 +23,9 @@ try:
 except ImportError:
     EXPERT_SOLVER_AVAILABLE = False
 
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "")
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY", "")
+API_BASE_URL = os.environ["API_BASE_URL"].rstrip("/")
+MODEL_NAME = os.environ["MODEL_NAME"]
+API_KEY = os.environ["API_KEY"]
 ENV_URL = os.getenv("ENV_URL", "http://localhost:7860").rstrip("/")
 TIMEOUT_SECONDS = 30
 
@@ -301,10 +301,7 @@ def parse_action(text: str) -> Dict[str, Any]:
     }
 
 
-def choose_action(client: Optional[OpenAI], task_id: str, obs: Dict[str, Any], history: List[str], step_no: int) -> Dict[str, Any]:
-    if client is None:
-        return fallback_action(obs, step_no, task_id)
-
+def choose_action(client: OpenAI, task_id: str, obs: Dict[str, Any], history: List[str], step_no: int) -> Dict[str, Any]:
     prompt = build_user_prompt(task_id, obs, history, step_no)
 
     try:
@@ -330,7 +327,7 @@ def choose_action(client: Optional[OpenAI], task_id: str, obs: Dict[str, Any], h
             return fallback_action(obs, step_no, task_id)
 
 
-def run_episode(client: Optional[OpenAI], task_id: str) -> Dict[str, Any]:
+def run_episode(client: OpenAI, task_id: str) -> Dict[str, Any]:
     """Run a single episode with per-task step budget."""
     log_start(task_id)
 
@@ -406,9 +403,7 @@ def resolve_tasks() -> List[str]:
 
 
 def main() -> None:
-    client: Optional[OpenAI] = None
-    if MODEL_NAME and API_KEY:
-        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
     tasks = resolve_tasks()
     if not tasks:
