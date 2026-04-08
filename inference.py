@@ -25,6 +25,7 @@ except ImportError:
 
 API_BASE_URL = os.getenv("API_BASE_URL", "").rstrip("/")
 MODEL_NAME = os.getenv("MODEL_NAME") or os.getenv("OPENAI_MODEL", "")
+REQUEST_MODEL = MODEL_NAME or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 ENV_URL = os.getenv("ENV_URL", "http://localhost:7860").rstrip("/")
 TIMEOUT_SECONDS = 30
 
@@ -307,7 +308,7 @@ def choose_action(client: OpenAI | None, task_id: str, obs: Dict[str, Any], hist
         if client is None:
             raise RuntimeError("LLM client unavailable")
         completion = client.chat.completions.create(
-            model=MODEL_NAME,
+            model=REQUEST_MODEL,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
@@ -331,7 +332,7 @@ def choose_action(client: OpenAI | None, task_id: str, obs: Dict[str, Any], hist
 def warmup_proxy_call(client: OpenAI) -> None:
     """Send a minimal request so validator observes proxy usage even if env steps fail early."""
     client.chat.completions.create(
-        model=MODEL_NAME,
+        model=REQUEST_MODEL,
         messages=[
             {"role": "system", "content": "Return only JSON."},
             {
@@ -424,7 +425,7 @@ def main() -> None:
     api_key = os.getenv("API_KEY", "") or os.getenv("HF_TOKEN", "")
 
     client: OpenAI | None = None
-    if API_BASE_URL and api_key and MODEL_NAME:
+    if API_BASE_URL and api_key:
         client = OpenAI(base_url=API_BASE_URL, api_key=api_key)
         try:
             warmup_proxy_call(client)
