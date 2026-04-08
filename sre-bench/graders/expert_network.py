@@ -49,4 +49,4 @@ def grade_expert_network(env) -> float:
         elif final_state.step_count <= 8:
             score += 0.05
     
-    return min(max(score, 0.0), 1.0)
+    return min(max(score, 0.001), 0.999)

@@ -55,5 +55,5 @@ def grade_easy(env) -> float:
         elif final_state.step_count <= 5:
             score += 0.05
     
-    return min(max(score, 0.0), 1.0)
+    return min(max(score, 0.001), 0.999)
 
