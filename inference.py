@@ -33,9 +33,16 @@ TIMEOUT_SECONDS = 30
 STEP_BUDGETS = {
     "easy_restart": 3,              # OOM is obvious, solution is quick
     "medium_cascade": 8,            # Need to trace dependencies
+    "medium_cpu_spike": 6,          # CPU limits are usually quick to spot
+    "medium_memory_leak": 6,        # GC/Heap metrics take a few steps
     "hard_intermittent": 10,        # Requires deep investigation
+    "hard_disk_pressure": 8,        # Disk usage and WAL logs
+    "hard_dns_resolution": 8,       # DNS tracing from upstream
+    "hard_config_drift": 8,         # Config sync checks
     "expert_network_partition": 12, # Complex diagnosis
     "expert_database_replica_sync": 12,  # Requires understanding replication
+    "expert_deadlock": 10,          # Transaction lock chains
+    "expert_cert_expiry": 8,        # SSL errors
 }
 
 # Task-specific diagnostic hints to guide LLM reasoning
@@ -57,6 +64,27 @@ TASK_HINTS = {
     "expert_database_replica_sync":
         "Database replica is failing to stay in sync with primary. "
         "Check WAL (Write-Ahead Log) synchronization, replication slots, or storage issues.",
+    "medium_cpu_spike":
+        "CPU is capping out causing request queuing. "
+        "Check for thread pool saturation or CPU throttle logs.",
+    "medium_memory_leak":
+        "Memory is slowly creeping up until GC pauses occur. "
+        "Look for heap growth or finalizer depth logs.",
+    "hard_disk_pressure":
+        "Storage is filling up rapidly. "
+        "Look for WAL segment accumulation or 'No space left on device' logs.",
+    "hard_dns_resolution":
+        "Services cannot resolve hostnames, causing cascading connection timeouts. "
+        "Look for SERVFAIL, lookup timeouts, or DNS cache issues.",
+    "hard_config_drift":
+        "A bad config deployment caused misconfiguration across instances. "
+        "Look for config hash mismatches or rate limit threshold drops.",
+    "expert_deadlock":
+        "Database transactions are locking each other out. "
+        "Look for 'waiting on lock', 'deadlock detected', or transaction aborts.",
+    "expert_cert_expiry":
+        "A TLS certificate has expired, outright rejecting all connections. "
+        "Look for SSL_ERROR_EXPIRED_CERT_ALERT or handshake failures.",
 }
 
 SYSTEM_PROMPT = (
