@@ -56,7 +56,15 @@ cd sre-bench
 python train_grpo.py --steps 50 --model "unsloth/Llama-3.2-1B-Instruct"
 ```
 
-**Results**: Baseline collection and training in progress. Run `--dry-run` for baseline plots.
+**Results**: Baseline evaluation complete. GRPO training in progress on Kaggle T4.
+
+| Agent | Easy (Restart) | Medium (Cascade) | Hard (Intermittent) |
+|-------|---------------|-----------------|-------------------|
+| Random | -1.70 ±1.50 | -1.52 ±1.68 | -1.64 ±1.28 |
+| Heuristic | 1.02 ±0.00 | 1.10 ±0.00 | 1.10 ±0.00 |
+| GRPO Trained | _[updating]_ | _[updating]_ | _[updating]_ |
+
+![Baseline comparison: Random vs Heuristic agent rewards across tasks](baseline_comparison.png)
 
 📖 **Full details**: [Read the blog post →](BLOG_POST.md)
 
