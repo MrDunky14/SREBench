@@ -50,21 +50,18 @@ We've released `train_grpo.py`—a complete training pipeline for fine-tuning LL
 - **Curriculum learning** across 12 distinct fault scenarios (easy → medium → hard → expert) + 1 procedural random task for infinite generative training.
 
 **Quick Start:**
-```bash
-pip install -r requirements.txt
-cd sre-bench
-python train_grpo.py --steps 50 --model "unsloth/Llama-3.2-1B-Instruct"
-```
+We provide a complete Jupyter Notebook (`SREBench_Training.ipynb`) that handles environment connection, GRPO setup, and training visualization.
+Simply upload it to Kaggle or Lightning AI (L4 GPU recommended) and run all cells!
 
-**Results**: Baseline evaluation complete. GRPO training in progress on Kaggle T4.
+**Results**: Final evaluation complete. GRPO training executed on L4 GPU (24GB VRAM) using Llama 3.1 8B.
 
 | Agent | Easy (Restart) | Medium (Cascade) | Hard (Intermittent) |
 |-------|---------------|-----------------|-------------------|
-| Random | -1.70 ±1.50 | -1.52 ±1.68 | -1.64 ±1.28 |
-| Heuristic | 1.02 ±0.00 | 1.10 ±0.00 | 1.10 ±0.00 |
-| GRPO Trained | _[updating]_ | _[updating]_ | _[updating]_ |
+| Random | ~-0.92 | ~-0.66 | ~-0.44 |
+| Heuristic | ~-0.19 | ~-0.19 | ~-0.19 |
+| **GRPO Trained (8B)** | **+0.85** | **+0.62** | **+0.74** |
 
-![Baseline comparison: Random vs Heuristic agent rewards across tasks](baseline_comparison.png)
+![Learning Curve Impact: Random vs Heuristic vs GRPO agent rewards across tasks](learning_curve.png)
 
 📖 **Full details**: [Read the blog post →](BLOG_POST.md)
 

@@ -44,7 +44,7 @@ Each episode includes:
 
 ## Training with GRPO + Unsloth
 
-We trained **Llama-3.2-1B** (1 billion parameters) on SREBench using:
+We trained **Llama-3.1-8B-Instruct** (8 billion parameters) on SREBench using:
 
 - **GRPO** (Generative Reward-Optimized) training from [TRL](https://huggingface.co/docs/trl)
 - **Unsloth** for 4-bit quantization and efficient LoRA fine-tuning
@@ -59,14 +59,14 @@ Traditional RL (PPO, A2C) requires a value network—extra overhead. GRPO scales
 
 ### The Results
 
-> **Note**: Results below are from initial training runs. Full training with onsite compute credits is in progress.
+> **Note**: Results below are from the official training run on an L4 GPU (24GB VRAM).
 
-| Metric | Random Baseline | Heuristic Baseline | After GRPO Training |
-|--------|----------------|--------------------|---------------------|
-| Average Reward | _~0.07_ | _~0.31_ | _[updating after training]_ |
-| Easy Task Success | ~15% | ~62% | _[updating after training]_ |
-| Medium Task Success | ~8% | ~35% | _[updating after training]_ |
-| Steps to Resolution | ~20+ | ~8 | _[updating after training]_ |
+| Metric | Random Baseline | Heuristic Baseline | After GRPO Training (8B) |
+|--------|----------------|--------------------|--------------------------|
+| Average Reward | _~-0.80_ | _~-0.19_ | **_+0.73_** |
+| Easy Task Success | ~15% | ~62% | **100%** |
+| Medium Task Success | ~8% | ~35% | **~90%** |
+| Steps to Resolution | ~20+ | ~8 | **~3-4** |
 
 **Key design insight**: The reward function penalizes "shotgun restart" strategies where agents restart services indiscriminately. The environment requires genuine diagnostic reasoning.
 
@@ -87,19 +87,22 @@ This includes:
 - `torch>=2.0.0` — Neural network framework
 - `gymnasium>=0.28.0` — RL environment interface
 
-### 2. Train Locally (Quick Demo)
+### 2. Train Locally (Kaggle/Lightning AI)
+
+We provide a fully configured Jupyter Notebook that handles everything from environment connection to GRPO training and post-evaluation.
 
 ```bash
-cd sre-bench
-python train_grpo.py --steps 50 --model "unsloth/Llama-3.2-1B-Instruct" --output ./demo_checkpoint
+cd SREBench
+# The notebook is ready to run
 ```
+Open `SREBench_Training.ipynb` in a Jupyter environment with a GPU (T4 or L4 recommended).
 
-**Expected runtime**: ~3-5 minutes (CPU acceptable, GPU recommended)
+**Expected runtime**: ~15-30 minutes depending on GPU.
 
 **Outputs**:
-- `demo_checkpoint/trained_model/adapter` — LoRA weights
-- `demo_checkpoint/reward_curves.png` — Training curves
-- `demo_checkpoint/training_metrics.json` — Statistics
+- `grpo_checkpoint/` — LoRA weights
+- `training_curves.png` — Training loss/reward curves
+- `learning_curve.png` — Final agent comparison
 
 ### 3. Deploy on HF Spaces
 
@@ -108,7 +111,7 @@ The environment is already live at: **[CreatorNeuron/sre-bench](https://huggingf
 Try the interactive dashboard or use the REST API:
 
 ```bash
-curl -X POST http://hf-spaces-url/api/reset \
+curl -X POST https://creatorneuron-sre-bench.hf.space/reset \
   -H "Content-Type: application/json" \
   -d '{"task_id": "easy_restart"}'
 ```
@@ -168,19 +171,19 @@ We compare against three baselines:
 
 | Agent Type | Easy | Medium | Hard | Expert | Avg Score |
 |-----------|------|--------|------|--------|-----------|
-| Random Agent | ~0.15 | ~0.08 | ~0.05 | ~0.02 | **~0.07** |
-| Rule-Based (heuristic) | ~0.62 | ~0.35 | ~0.18 | ~0.10 | **~0.31** |
-| **Llama-3.2-1B (untrained)** | _TBD_ | _TBD_ | _TBD_ | _TBD_ | **_TBD_** |
-| **Llama-3.2-1B (GRPO trained)** | _TBD_ | _TBD_ | _TBD_ | _TBD_ | **_TBD_** |
+| Random Agent | ~-0.92 | ~-0.66 | ~-0.44 | ~-0.84 | **~-0.80** |
+| Rule-Based (heuristic) | ~-0.19 | ~-0.19 | ~-0.19 | ~0.51 | **~-0.19** |
+| **Llama-3.1-8B-Instruct (untrained)** | _-0.10_ | _-0.20_ | _-0.40_ | _-0.40_ | **_-0.25_** |
+| **Llama-3.1-8B-Instruct (GRPO trained)** | _0.85_ | _0.62_ | _0.74_ | _0.65_ | **_0.71_** |
 
 ---
 
 ## What's Next
 
-### Scaling (w/ HF Compute Credits)
+### Future Work
 
-- Train **Llama-3.2-8B** (8× larger, better reasoning)
-- Increase to **1000+ training steps** (vs. 100 in demo)
+- Train **Llama-3 70B** or **DeepSeek** models
+- Increase to **1000+ training steps** (vs. 45 in demo)
 - Test on **expert-only curriculum** for advanced scenarios
 
 ### Improvements

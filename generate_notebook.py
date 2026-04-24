@@ -140,7 +140,10 @@ Commands:
   diagnose: submit_diagnosis (params: {"root_cause": "<diagnosis>"})
   remediate: restart, scale_up, increase_pool, flush_cache, rollback, failover
 
-Strategy: investigate at least 2 services before diagnosing. Do NOT restart randomly.\"\"\"
+Strategy: investigate at least 2 services before diagnosing. Do NOT restart randomly.
+
+EXAMPLE RESPONSE:
+{"action_type": "investigate", "command": "check_logs", "target": "api-gateway", "params": {}}\"""
 
 def build_prompt(obs):
     lines = []
@@ -148,14 +151,15 @@ def build_prompt(obs):
         lines.append(f"  {s['name']}: {s['status']} cpu={s['cpu_percent']:.1f}% mem={s['memory_percent']:.1f}% err={s['error_rate_percent']:.1f}%")
     return (f"ALERT: {obs.get('alert_message', '')}\\n"
             f"Services:\\n" + "\\n".join(lines) +
-            f"\\nSteps: {obs.get('steps_taken', 0)}/{obs.get('max_steps', 30)}\\nRespond with a JSON action.")
+            f"\\nSteps: {obs.get('steps_taken', 0)}/{obs.get('max_steps', 30)}\\nRespond with ONLY a valid JSON object and nothing else.")
 
 # Reward functions for GRPO
 def reward_format(completions, **kw):
     rewards = []
     for t in completions:
         try:
-            m = re.search(r'\\{[^{}]+\\}', t)
+            content = t[-1]["content"] if isinstance(t, list) else t
+            m = re.search(r'\\{[^{}]+\\}', content)
             if m:
                 o = json.loads(m.group())
                 rewards.append(0.2 if all(k in o for k in ["action_type","command","target"]) else -0.1)
@@ -169,7 +173,8 @@ def reward_investigation(completions, **kw):
     rewards = []
     for t in completions:
         try:
-            m = re.search(r'\\{[^{}]+\\}', t)
+            content = t[-1]["content"] if isinstance(t, list) else t
+            m = re.search(r'\\{[^{}]+\\}', content)
             if m:
                 o = json.loads(m.group())
                 rewards.append(0.15 if o.get("action_type") == "investigate" else 0.0)
@@ -183,7 +188,8 @@ def reward_no_shotgun(completions, **kw):
     rewards = []
     for t in completions:
         try:
-            m = re.search(r'\\{[^{}]+\\}', t)
+            content = t[-1]["content"] if isinstance(t, list) else t
+            m = re.search(r'\\{[^{}]+\\}', content)
             if m:
                 o = json.loads(m.group())
                 rewards.append(-0.2 if o.get("action_type") == "remediate" and o.get("command") == "restart" else 0.0)
@@ -196,12 +202,13 @@ def reward_no_shotgun(completions, **kw):
 print("Reward functions defined.")""")
 
 code("""# Load model
+from unsloth import FastLanguageModel, PatchFastRL
+PatchFastRL("GRPO", FastLanguageModel)
 from trl import GRPOTrainer, GRPOConfig
-from unsloth import FastLanguageModel
 from datasets import Dataset
 
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name="unsloth/Llama-3.2-1B-Instruct-bnb-4bit",
+    model_name="unsloth/Llama-3.1-8B-Instruct-bnb-4bit",
     max_seq_length=1024, dtype=None, load_in_4bit=True)
 
 model = FastLanguageModel.get_peft_model(model, r=16, lora_alpha=32, lora_dropout=0.05,
@@ -229,6 +236,7 @@ print(f"Created {len(prompts)} training prompts")
 training_args = GRPOConfig(
     output_dir="./grpo_checkpoint",
     per_device_train_batch_size=1,
+    gradient_accumulation_steps=4,
     num_generations=4,
     max_completion_length=256,
     max_prompt_length=512,
@@ -249,14 +257,14 @@ print("Training complete!")""")
 
 code("""# Plot training curves
 log_history = trainer.state.log_history
-steps = [h["step"] for h in log_history if "loss" in h]
-losses = [h["loss"] for h in log_history if "loss" in h]
+steps = [h["step"] for h in log_history if "reward" in h]
+rewards = [h["reward"] for h in log_history if "reward" in h]
 
 fig, ax = plt.subplots(figsize=(10, 4))
-ax.plot(steps, losses, color="#6bcb77", linewidth=2, marker="o", markersize=3)
+ax.plot(steps, rewards, color="#6bcb77", linewidth=2, marker="o", markersize=3)
 ax.set_xlabel("Training Step")
-ax.set_ylabel("Loss")
-ax.set_title("SREBench GRPO Training Loss Curve")
+ax.set_ylabel("Reward")
+ax.set_title("SREBench GRPO Training Reward Curve")
 ax.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.savefig("training_curves.png", dpi=150, bbox_inches="tight")
@@ -284,7 +292,7 @@ for task_id in TASK_IDS[:3]:
             inp = tokenizer.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
             tokens = tokenizer(inp, return_tensors="pt").to(model.device)
             with torch.no_grad():
-                out = model.generate(**tokens, max_new_tokens=128, temperature=0.7, do_sample=True)
+                out = model.generate(**tokens, max_new_tokens=128, temperature=0.7, do_sample=True, pad_token_id=tokenizer.eos_token_id)
             resp = tokenizer.decode(out[0][tokens["input_ids"].shape[1]:], skip_special_tokens=True)
             try:
                 m = re.search(r'\\{[^{}]+\\}', resp)
@@ -327,14 +335,14 @@ plt.show()
 print("Saved learning_curve.png")
 print("\\nTraining pipeline complete! Environment is learnable.")""")
 
-md("## Results Summary\\n\\n"
-   "SREBench demonstrates:\\n"
-   "- **Anti-exploit hardening**: 9/9 reward hacking tests pass\\n"
-   "- **Stochastic metrics**: No two episodes are identical\\n"
-   "- **Learnable environment**: GRPO training produces measurable improvement\\n"
-   "- **5 difficulty tiers**: Easy → Expert with cascading failures\\n\\n"
-   "**Links:**\\n"
-   "- 🌐 HF Space: https://huggingface.co/spaces/CreatorNeuron/sre-bench\\n"
+md("## Results Summary\n\n"
+   "SREBench demonstrates:\n"
+   "- **Anti-exploit hardening**: 9/9 reward hacking tests pass\n"
+   "- **Stochastic metrics**: No two episodes are identical\n"
+   "- **Learnable environment**: GRPO training produces measurable improvement\n"
+   "- **5 difficulty tiers**: Easy → Expert with cascading failures\n\n"
+   "**Links:**\n"
+   "- 🌐 HF Space: https://huggingface.co/spaces/CreatorNeuron/sre-bench\n"
    "- 💻 GitHub: https://github.com/MrDunky14/SREBench")
 
 # Write notebook
