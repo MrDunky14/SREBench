@@ -49,6 +49,62 @@ INCIDENTS = {
         "description": "Database replica sync failure causing data inconsistency",
         "max_steps": 35,
     },
+    "medium_cpu_spike": {
+        "root_cause_service": "api-gateway",
+        "fault_type": "cpu_throttle",
+        "ground_truth_diagnosis": "cpu_throttle",
+        "ground_truth_fix": "scale_up",
+        "description": "CPU saturation on API gateway causing request queuing and timeouts",
+        "max_steps": 30,
+    },
+    "medium_memory_leak": {
+        "root_cause_service": "user-service",
+        "fault_type": "slow_memory_leak",
+        "ground_truth_diagnosis": "slow_memory_leak",
+        "ground_truth_fix": "restart",
+        "description": "Gradual memory leak in user-service causing increasing GC pressure",
+        "max_steps": 30,
+    },
+    "hard_disk_pressure": {
+        "root_cause_service": "database-primary",
+        "fault_type": "disk_pressure",
+        "ground_truth_diagnosis": "disk_pressure",
+        "ground_truth_fix": "increase_pool",
+        "description": "Disk I/O bottleneck on database-primary from WAL accumulation",
+        "max_steps": 30,
+    },
+    "hard_dns_resolution": {
+        "root_cause_service": "api-gateway",
+        "fault_type": "dns_resolution_failure",
+        "ground_truth_diagnosis": "dns_resolution_failure",
+        "ground_truth_fix": "restart",
+        "description": "DNS resolution failure making all downstream services unreachable",
+        "max_steps": 30,
+    },
+    "expert_deadlock": {
+        "root_cause_service": "database-primary",
+        "fault_type": "database_deadlock",
+        "ground_truth_diagnosis": "database_deadlock",
+        "ground_truth_fix": "restart",
+        "description": "Database deadlock causing cascading transaction timeouts",
+        "max_steps": 35,
+    },
+    "expert_cert_expiry": {
+        "root_cause_service": "api-gateway",
+        "fault_type": "tls_cert_expired",
+        "ground_truth_diagnosis": "tls_cert_expired",
+        "ground_truth_fix": "rollback",
+        "description": "Expired TLS certificate rejecting all client connections",
+        "max_steps": 35,
+    },
+    "hard_config_drift": {
+        "root_cause_service": "payment-service",
+        "fault_type": "config_drift",
+        "ground_truth_diagnosis": "config_drift",
+        "ground_truth_fix": "rollback",
+        "description": "Configuration drift after bad deploy causing intermittent 503 errors",
+        "max_steps": 30,
+    },
 }
 
 
@@ -95,13 +151,19 @@ class SREBenchEnvironment:
         self.shotgun_penalty_applied = False
         
         # Create new infrastructure and inject incident
-        incident_config = INCIDENTS.get(task_id, INCIDENTS["easy_restart"])
+        # Support procedural "random" task — pick a random incident each episode
+        import random as _rng
+        if task_id == "random":
+            real_task = _rng.choice([k for k in INCIDENTS.keys()])
+            self.task_id = real_task
+            incident_config = INCIDENTS[real_task]
+        else:
+            incident_config = INCIDENTS.get(task_id, INCIDENTS["easy_restart"])
         self.infrastructure = Infrastructure(seed=hash(self.episode_id) % (2**31))
         self.infrastructure.inject_incident(incident_config)
+        self.max_steps = incident_config.get("max_steps", 30)
         
         # Generate initial observation — do NOT reveal the fault type
-        incident_config = INCIDENTS.get(task_id, INCIDENTS["easy_restart"])
-        root_svc = incident_config["root_cause_service"]
         self.last_action_result = f"Incident detected: Service degradation reported. Multiple alerts firing. Begin investigation."
         return self._make_observation()
     

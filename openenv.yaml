@@ -1,7 +1,7 @@
 # openenv.yaml
 name: sre-bench
-description: "Production incident response benchmark for SRE agents. Agents must diagnose and remediate microservice outages."
-version: "1.0.0"
+description: "Production incident response benchmark for SRE agents. 12 realistic fault scenarios across 5 difficulty levels with anti-exploit hardening."
+version: "2.0.0"
 tasks:
   - id: easy_restart
     name: "Service Restart"
@@ -11,9 +11,29 @@ tasks:
     name: "Cascading Failure"
     description: "Trace and fix a cascading failure across dependent services caused by a database bottleneck."
     difficulty: medium
+  - id: medium_cpu_spike
+    name: "CPU Saturation"
+    description: "Diagnose CPU throttling on the API gateway and scale up to resolve request queuing."
+    difficulty: medium
+  - id: medium_memory_leak
+    name: "Memory Leak"
+    description: "Detect a slow memory leak in user-service before it becomes critical."
+    difficulty: medium
   - id: hard_intermittent
     name: "Intermittent Nightmare"
     description: "Diagnose intermittent latency spikes caused by subtle cache fragmentation."
+    difficulty: hard
+  - id: hard_disk_pressure
+    name: "Disk Pressure"
+    description: "Identify disk I/O bottleneck from WAL accumulation on the database."
+    difficulty: hard
+  - id: hard_dns_resolution
+    name: "DNS Resolution Failure"
+    description: "Diagnose DNS resolution failure that makes all downstream services appear unhealthy."
+    difficulty: hard
+  - id: hard_config_drift
+    name: "Configuration Drift"
+    description: "Detect and rollback a bad configuration deployment causing intermittent 503 errors."
     difficulty: hard
   - id: expert_network_partition
     name: "Network Partition Crisis"
@@ -23,3 +43,15 @@ tasks:
     name: "Database Sync Failure"
     description: "Fix database replica sync failure caused by WAL synchronization issues."
     difficulty: expert
+  - id: expert_deadlock
+    name: "Database Deadlock"
+    description: "Diagnose database deadlock causing cascading transaction timeouts."
+    difficulty: expert
+  - id: expert_cert_expiry
+    name: "TLS Certificate Expiry"
+    description: "Diagnose expired TLS certificate that rejects all client connections."
+    difficulty: expert
+  - id: random
+    name: "Random Incident"
+    description: "Procedurally generated incident — a random fault type is selected each episode."
+    difficulty: random

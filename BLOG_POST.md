@@ -25,12 +25,13 @@ The response? A human SRE on call, manually digging through logs, correlating me
 
 ### The Environment
 
-SREBench simulates realistic production failures across 5 difficulty tiers:
+SREBench simulates realistic production failures across **12 distinct incident types** covering 5 difficulty tiers:
 
-- **Easy** (`easy_restart`): Payment service OOM killed → restart
-- **Medium** (`medium_cascade`): Database connection pool exhausted → cascading failures → increase pool size
-- **Hard** (`hard_intermittent`): Cache fragmentation → subtle intermittent errors → flush cache
-- **Expert** (`expert_network_partition`, `expert_database_replica_sync`): Network partitions and data consistency issues → advanced remediation
+- **Easy**: `easy_restart` (OOM killed)
+- **Medium**: `medium_cascade` (Cascading failures), `medium_cpu_spike` (CPU throttling), `medium_memory_leak` (Slow heap exhaustion)
+- **Hard**: `hard_intermittent` (Cache fragmentation), `hard_disk_pressure` (WAL exhaustion), `hard_dns_resolution` (Network isolation), `hard_config_drift` (Deployment mismatch)
+- **Expert**: `expert_network_partition`, `expert_database_replica_sync`, `expert_deadlock`, `expert_cert_expiry`
+- **Generative**: `random` (Procedurally assigned incident for infinite generative training)
 
 Each episode includes:
 - Stochastic metrics (no two episodes identical)

@@ -13,6 +13,7 @@ from graders.medium import grade_medium
 from graders.hard import grade_hard
 from graders.expert_network import grade_expert_network
 from graders.expert_replica import grade_expert_replica
+from graders.universal import grade_universal
 
 app = FastAPI(title="SREBench Environment")
 
@@ -27,6 +28,14 @@ GRADERS = {
     "hard_intermittent": grade_hard,
     "expert_network_partition": grade_expert_network,
     "expert_database_replica_sync": grade_expert_replica,
+    # New tasks use the universal grader
+    "medium_cpu_spike": grade_universal,
+    "medium_memory_leak": grade_universal,
+    "hard_disk_pressure": grade_universal,
+    "hard_dns_resolution": grade_universal,
+    "expert_deadlock": grade_universal,
+    "expert_cert_expiry": grade_universal,
+    "hard_config_drift": grade_universal,
 }
 
 
@@ -96,36 +105,13 @@ def get_tasks():
     """Get available tasks and action schema."""
     return {
         "tasks": [
-            {
-                "id": "easy_restart",
-                "name": "Service Restart",
-                "description": "Diagnose and restart a single OOMKilled service.",
-                "difficulty": "easy",
-            },
-            {
-                "id": "medium_cascade",
-                "name": "Cascading Failure",
-                "description": "Trace and fix a cascading failure across dependent services caused by a database bottleneck.",
-                "difficulty": "medium",
-            },
-            {
-                "id": "hard_intermittent",
-                "name": "Intermittent Nightmare",
-                "description": "Diagnose intermittent latency spikes caused by subtle cache fragmentation.",
-                "difficulty": "hard",
-            },
-            {
-                "id": "expert_network_partition",
-                "name": "Network Partition Crisis",
-                "description": "Detect and handle network partition between primary and replica databases.",
-                "difficulty": "expert",
-            },
-            {
-                "id": "expert_database_replica_sync",
-                "name": "Database Sync Failure",
-                "description": "Fix database replica sync failure caused by WAL synchronization issues.",
-                "difficulty": "expert",
-            },
+            {"id": tid, "name": cfg.get("description", tid), "difficulty": tid.split("_")[0],
+             "description": cfg["description"]}
+            for tid, cfg in INCIDENTS.items()
+        ] + [
+            {"id": "random", "name": "Random Incident",
+             "description": "Procedurally generated — a random fault is selected each episode.",
+             "difficulty": "random"}
         ],
         "action_schema": IncidentAction.schema(),
     }
@@ -137,8 +123,8 @@ def reset_env(payload: Optional[Dict[str, Any]] = Body(default=None)):
     global episode_history
     task_id = payload.get("task_id", "easy_restart") if payload else "easy_restart"
     
-    if task_id not in INCIDENTS:
-        raise HTTPException(status_code=400, detail=f"Unknown task: {task_id}")
+    if task_id not in INCIDENTS and task_id != "random":
+        raise HTTPException(status_code=400, detail=f"Unknown task: {task_id}. Valid tasks: {list(INCIDENTS.keys()) + ['random']}")
     
     # Save previous episode to history
     if env.step_count > 0:

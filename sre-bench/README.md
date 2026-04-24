@@ -66,7 +66,7 @@ Each service tracks:
 
 ## Tasks
 
-The live environment currently exposes 5 tasks: 3 core incidents plus 2 expert scenarios.
+The live environment currently exposes **12 core incident scenarios** across 4 difficulty tiers, plus **1 procedural `random` scenario** for generative training.
 
 ### Task 1: Service Restart (Easy)
 **Scenario**: `payment-service` is OOMKilled due to a memory leak.

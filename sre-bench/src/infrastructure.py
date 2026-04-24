@@ -77,6 +77,48 @@ LOG_TEMPLATES = {
         "ERROR Replication error: master down, replica cannot connect",
         "ERROR Write failed: cannot ensure replica durability",
     ],
+    "cpu_throttle": [
+        "WARN  CPU throttling detected: {throttle_pct}% of cycles throttled",
+        "WARN  Request queue depth: {queue_depth} (threshold: 50)",
+        "ERROR Request processing exceeded timeout: {timeout}ms",
+        "WARN  Thread pool saturated: {active}/{max} active threads",
+    ],
+    "slow_memory_leak": [
+        "DEBUG Heap usage: {heap_mb}MB / {heap_max}MB ({heap_pct}%)",
+        "WARN  GC frequency increasing: {gc_count} collections in last minute",
+        "DEBUG Object finalizer queue depth: {finalizer_depth}",
+        "WARN  Resident memory growing: +{growth_mb}MB in last hour",
+    ],
+    "disk_pressure": [
+        "WARN  Disk usage: {disk_pct}% on /var/lib/postgresql/data",
+        "ERROR Write failed: No space left on device (errno=28)",
+        "WARN  WAL segment accumulation: {wal_count} segments pending archival",
+        "ERROR Checkpoint failed: could not write to file pg_wal",
+    ],
+    "dns_resolution_failure": [
+        "ERROR DNS resolution failed for {hostname}: SERVFAIL",
+        "WARN  Upstream connection timeout after DNS lookup delay: {delay}ms",
+        "ERROR Failed to resolve service endpoint: {service}.internal.svc",
+        "WARN  Falling back to cached DNS entry (TTL expired {ttl_ago}s ago)",
+    ],
+    "database_deadlock": [
+        "ERROR Deadlock detected: transaction {txn_id} waiting on lock held by {blocking_txn}",
+        "WARN  Lock wait timeout: {wait_ms}ms on table {table}",
+        "ERROR Transaction {txn_id} aborted due to deadlock",
+        "WARN  Lock queue depth: {lock_queue} transactions waiting",
+    ],
+    "tls_cert_expired": [
+        "ERROR TLS handshake failed: certificate expired {days_ago} days ago",
+        "ERROR SSL_ERROR_EXPIRED_CERT_ALERT from client {client_ip}",
+        "WARN  Certificate expiry: CN={cn} expired at {expiry_date}",
+        "ERROR Rejecting connection: peer certificate verification failed",
+    ],
+    "config_drift": [
+        "WARN  Config hash mismatch: running={running_hash} expected={expected_hash}",
+        "ERROR Feature flag '{flag}' enabled but backend not ready",
+        "WARN  Rate limiter threshold changed: {old_rps} -> {new_rps} rps",
+        "ERROR Unexpected 503 from upstream after config reload at {reload_time}",
+    ],
 }
 
 
@@ -192,6 +234,68 @@ class Infrastructure:
             svc.cpu_percent = self._jitter(55.0, 0.10, floor=38.0, ceiling=72.0)
             svc.memory_percent = self._jitter(82.0, 0.06, floor=72.0, ceiling=92.0)
             svc.metrics_history = {"replication_lag_seconds": self.rng.randint(20, 90)}
+            self._gen_logs(service_name, fault_type)
+
+        elif fault_type == "cpu_throttle":
+            svc.status = "degraded"
+            svc.cpu_percent = self._jitter(96.0, 0.03, floor=90.0, ceiling=100.0)
+            svc.memory_percent = self._jitter(55.0, 0.10, floor=40.0, ceiling=70.0)
+            svc.error_rate_percent = self._jitter(40.0, 0.15, floor=20.0, ceiling=60.0)
+            svc.latency_p99_ms = self._jitter(3800.0, 0.12, floor=2500.0, ceiling=5500.0)
+            svc.metrics_history = {"cpu_throttle_pct": self.rng.randint(60, 90)}
+            self._gen_logs(service_name, fault_type)
+
+        elif fault_type == "slow_memory_leak":
+            # Looks healthy initially but memory is creeping up
+            svc.status = "healthy"
+            svc.cpu_percent = self._jitter(30.0, 0.15, floor=15.0, ceiling=50.0)
+            svc.memory_percent = self._jitter(82.0, 0.06, floor=75.0, ceiling=92.0)
+            svc.error_rate_percent = self._jitter(3.0, 0.40, floor=0.5, ceiling=8.0)
+            svc.latency_p99_ms = self._jitter(350.0, 0.15, floor=200.0, ceiling=600.0)
+            svc.metrics_history = {"heap_growth_mb_per_hour": self.rng.randint(50, 200)}
+            self._gen_logs(service_name, fault_type)
+
+        elif fault_type == "disk_pressure":
+            svc.status = "degraded"
+            svc.cpu_percent = self._jitter(60.0, 0.10, floor=40.0, ceiling=80.0)
+            svc.memory_percent = self._jitter(70.0, 0.08, floor=55.0, ceiling=85.0)
+            svc.error_rate_percent = self._jitter(55.0, 0.12, floor=35.0, ceiling=75.0)
+            svc.latency_p99_ms = self._jitter(4200.0, 0.10, floor=3000.0, ceiling=6000.0)
+            svc.metrics_history = {"disk_usage_pct": self.rng.randint(92, 99)}
+            self._gen_logs(service_name, fault_type)
+
+        elif fault_type == "dns_resolution_failure":
+            svc.status = "degraded"
+            svc.cpu_percent = self._jitter(20.0, 0.20, floor=8.0, ceiling=35.0)
+            svc.memory_percent = self._jitter(40.0, 0.10, floor=25.0, ceiling=55.0)
+            svc.error_rate_percent = self._jitter(70.0, 0.10, floor=50.0, ceiling=90.0)
+            svc.latency_p99_ms = self._jitter(5000.0, 0.08, floor=4000.0, ceiling=8000.0)
+            self._gen_logs(service_name, fault_type)
+
+        elif fault_type == "database_deadlock":
+            svc.status = "degraded"
+            svc.cpu_percent = self._jitter(75.0, 0.10, floor=55.0, ceiling=92.0)
+            svc.memory_percent = self._jitter(68.0, 0.08, floor=55.0, ceiling=82.0)
+            svc.error_rate_percent = self._jitter(50.0, 0.12, floor=30.0, ceiling=70.0)
+            svc.latency_p99_ms = self._jitter(6000.0, 0.10, floor=4000.0, ceiling=9000.0)
+            svc.metrics_history = {"deadlock_count": self.rng.randint(5, 25)}
+            self._gen_logs(service_name, fault_type)
+
+        elif fault_type == "tls_cert_expired":
+            svc.status = "degraded"
+            svc.cpu_percent = self._jitter(15.0, 0.20, floor=5.0, ceiling=30.0)
+            svc.memory_percent = self._jitter(35.0, 0.12, floor=20.0, ceiling=50.0)
+            svc.error_rate_percent = self._jitter(90.0, 0.05, floor=80.0, ceiling=100.0)
+            svc.latency_p99_ms = self._jitter(100.0, 0.30, floor=20.0, ceiling=300.0)
+            svc.metrics_history = {"cert_days_expired": self.rng.randint(1, 30)}
+            self._gen_logs(service_name, fault_type)
+
+        elif fault_type == "config_drift":
+            svc.status = "degraded"
+            svc.cpu_percent = self._jitter(45.0, 0.12, floor=30.0, ceiling=65.0)
+            svc.memory_percent = self._jitter(60.0, 0.10, floor=45.0, ceiling=75.0)
+            svc.error_rate_percent = self._jitter(35.0, 0.18, floor=15.0, ceiling=55.0)
+            svc.latency_p99_ms = self._jitter(1800.0, 0.15, floor=1000.0, ceiling=3000.0)
             self._gen_logs(service_name, fault_type)
     
     def _propagate_failures(self, failed_service: str):
@@ -316,27 +420,22 @@ class Infrastructure:
         svc = self.services[target]
         
         if svc.fault_type == "oom_killed":
-            # Restart fixes OOM
             svc.status = "healthy"
             svc.memory_percent = 45.0
             svc.error_rate_percent = 0.0
             svc.cpu_percent = 35.0
             svc.latency_p99_ms = 120.0
             svc.fault_type = None
-            # Also recover dependents
             self._recover_dependents(target)
             return f"✓ Service {target} restarted successfully. Status: HEALTHY"
         
         elif svc.fault_type == "connection_pool_exhaustion":
-            # Restarting doesn't fix pool exhaustion; returns to degraded immediately
             return f"✗ Service {target} restarted but immediately degraded again. Upstream dependency (database-primary) still failing."
         
         elif svc.fault_type == "cache_fragmentation":
-            # Restarting cache without handling fragmentation doesn't help much
             return f"~ Service {target} restarted. Fragmentation persists; consider flush_cache."
         
         elif svc.fault_type == "database_replica_sync_failure":
-            # Restart re-syncs the WAL and recovers replication
             svc.status = "healthy"
             svc.memory_percent = 50.0
             svc.error_rate_percent = 0.0
@@ -348,7 +447,6 @@ class Infrastructure:
             return f"✓ Service {target} restarted. WAL sync restored. Replication recovered."
         
         elif svc.fault_type == "network_partition":
-            # Restart helps but failover is the better fix
             svc.status = "healthy"
             svc.memory_percent = 55.0
             svc.error_rate_percent = 2.0
@@ -357,6 +455,47 @@ class Infrastructure:
             svc.fault_type = None
             self._recover_dependents(target)
             return f"~ Service {target} restarted. Network connectivity partially restored. Consider failover for full recovery."
+        
+        elif svc.fault_type == "slow_memory_leak":
+            svc.status = "healthy"
+            svc.memory_percent = 40.0
+            svc.error_rate_percent = 0.0
+            svc.cpu_percent = 25.0
+            svc.latency_p99_ms = 100.0
+            svc.fault_type = None
+            svc.metrics_history = {}
+            self._recover_dependents(target)
+            return f"✓ Service {target} restarted. Memory leak cleared. Heap usage normalized."
+        
+        elif svc.fault_type == "dns_resolution_failure":
+            svc.status = "healthy"
+            svc.error_rate_percent = 0.0
+            svc.latency_p99_ms = 100.0
+            svc.fault_type = None
+            self._recover_dependents(target)
+            return f"✓ Service {target} restarted. DNS cache flushed. Resolution restored."
+        
+        elif svc.fault_type == "database_deadlock":
+            svc.status = "healthy"
+            svc.error_rate_percent = 0.0
+            svc.cpu_percent = 30.0
+            svc.latency_p99_ms = 80.0
+            svc.fault_type = None
+            svc.metrics_history = {}
+            self._recover_dependents(target)
+            return f"✓ Service {target} restarted. Deadlocked transactions killed. Lock queue cleared."
+        
+        elif svc.fault_type == "cpu_throttle":
+            return f"~ Service {target} restarted but CPU throttling persists. Consider scale_up."
+        
+        elif svc.fault_type == "disk_pressure":
+            return f"~ Service {target} restarted but disk pressure persists. Need to clear temp tables."
+        
+        elif svc.fault_type == "tls_cert_expired":
+            return f"~ Service {target} restarted but TLS certificate is still expired. Deploy new certificate."
+        
+        elif svc.fault_type == "config_drift":
+            return f"~ Service {target} restarted with drifted config. Consider rollback to last known good."
         
         else:
             return f"~ Service {target} restarted. No significant state change."
@@ -376,6 +515,15 @@ class Infrastructure:
     def _scale_service(self, target: str, params: dict) -> str:
         """Scale up a service."""
         svc = self.services[target]
+        if svc.fault_type == "cpu_throttle":
+            svc.status = "healthy"
+            svc.cpu_percent = 35.0
+            svc.error_rate_percent = 0.0
+            svc.latency_p99_ms = 120.0
+            svc.fault_type = None
+            svc.metrics_history = {}
+            self._recover_dependents(target)
+            return f"✓ Scaled {target}. CPU throttling resolved. Status: HEALTHY"
         svc.cpu_percent = max(10, svc.cpu_percent - 15)
         svc.memory_percent = max(20, svc.memory_percent - 10)
         return f"✓ Scaled {target}. New CPU: {svc.cpu_percent:.1f}%, Memory: {svc.memory_percent:.1f}%"
@@ -385,16 +533,25 @@ class Infrastructure:
         svc = self.services[target]
         
         if svc.fault_type == "connection_pool_exhaustion":
-            # Fixing pool exhaustion should recover the service
             svc.fault_type = None
             svc.status = "healthy"
             svc.error_rate_percent = 0.0
             svc.latency_p99_ms = 45.0
             svc.cpu_percent = 35.0
             svc.memory_percent = 55.0
-            # Also recover dependents
             self._recover_dependents(target)
             return f"✓ Increased connection pool on {target} to {params.get('new_max', 500)}. Status: HEALTHY. Cascading failures resolve."
+        
+        if svc.fault_type == "disk_pressure":
+            svc.fault_type = None
+            svc.status = "healthy"
+            svc.error_rate_percent = 0.0
+            svc.latency_p99_ms = 60.0
+            svc.cpu_percent = 30.0
+            svc.memory_percent = 50.0
+            svc.metrics_history = {}
+            self._recover_dependents(target)
+            return f"✓ Cleared temp tables and WAL segments on {target}. Disk pressure resolved. Status: HEALTHY"
         
         return f"~ Increased pool on {target}, but no connection exhaustion detected."
     
@@ -426,7 +583,26 @@ class Infrastructure:
         svc = self.services[target]
         if svc.fault_type is None and svc.status == "healthy":
             return f"~ Nothing to rollback on {target}. Service is already healthy."
-        # Rollback provides partial relief, not full recovery
+        
+        # Config drift and TLS cert are fixed by rollback
+        if svc.fault_type == "config_drift":
+            svc.status = "healthy"
+            svc.error_rate_percent = 0.0
+            svc.latency_p99_ms = 100.0
+            svc.cpu_percent = 25.0
+            svc.fault_type = None
+            self._recover_dependents(target)
+            return f"✓ Rolled back {target} to last known good config. Status: HEALTHY"
+        
+        if svc.fault_type == "tls_cert_expired":
+            svc.status = "healthy"
+            svc.error_rate_percent = 0.0
+            svc.latency_p99_ms = 80.0
+            svc.fault_type = None
+            self._recover_dependents(target)
+            return f"✓ Rolled back {target} with valid TLS certificate. Status: HEALTHY"
+        
+        # Generic rollback — partial relief only
         svc.error_rate_percent = max(0, svc.error_rate_percent * 0.6)
         svc.latency_p99_ms = max(50, svc.latency_p99_ms * 0.7)
         if svc.error_rate_percent < 5.0:

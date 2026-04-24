@@ -10,7 +10,7 @@ colorTo: red
 
 **A realistic OpenEnv benchmark environment for training and evaluating AI agents on production incident response.**
 
-You must diagnose and remediate microservice outages across a realistic 6-service architecture, using the exact tools and reasoning patterns that on-call SREs at Meta, Google, Amazon, and Microsoft employ every day.
+You must diagnose and remediate microservice outages across a realistic 6-service architecture, navigating **12 unique production incident scenarios** and a generative 'random' task, using the exact tools and reasoning patterns that on-call SREs at Meta, Google, Amazon, and Microsoft employ every day.
 
 ---
 
@@ -47,7 +47,7 @@ We've released `train_grpo.py`—a complete training pipeline for fine-tuning LL
 
 - **GRPO** (Generative Reward-Optimized) training from [TRL](https://huggingface.co/docs/trl/)
 - **Unsloth** for 4-bit quantization and efficient LoRA fine-tuning
-- **Curriculum learning** (easy → medium → hard incidents)
+- **Curriculum learning** across 12 distinct fault scenarios (easy → medium → hard → expert) + 1 procedural random task for infinite generative training.
 
 **Quick Start:**
 ```bash
@@ -72,35 +72,30 @@ python train_grpo.py --steps 50 --model "unsloth/Llama-3.2-1B-Instruct"
 
 ## 🏗️ What You Get
 
-**5 production-grade incident tasks with escalating difficulty:**
+**12 production-grade incident tasks with escalating difficulty, plus 1 procedural generative task:**
 
-### Task 1: Service Restart ⚡ (Easy)
-- **Scenario**: Payment service OOMKilled due to memory leak
-- **Difficulty**: Obvious problem in logs and metrics
-- **Expected**: 1 step, 1.0 score
-- **Tests**: Basic diagnostic ability
+### ⚡ Easy Tasks
+- **`easy_restart`**: Payment service OOMKilled due to memory leak.
 
-### Task 2: Cascading Failure 🔗 (Medium)
-- **Scenario**: Database connection pool exhaustion cascading across 3 services
-- **Difficulty**: Requires dependency chain reasoning
-- **Expected**: ~4 steps, 0.95 score
-- **Tests**: How agents trace complex failures across service boundaries
+### 🔗 Medium Tasks
+- **`medium_cascade`**: Database connection pool exhaustion cascading across 3 services.
+- **`medium_cpu_spike`**: CPU throttling on API gateway causing request queuing.
+- **`medium_memory_leak`**: Slow heap exhaustion in user-service requiring early detection.
 
-### Task 3: Intermittent Nightmare 🔍 (Hard)
-- **Scenario**: Cache fragmentation hidden in a "healthy" service
-- **Difficulty**: Requires checking metrics on healthy services, inferring root cause from indirect signals
-- **Expected**: ~3 steps, 0.95 score
-- **Tests**: Whether agents can find non-obvious root causes
+### 🔍 Hard Tasks
+- **`hard_intermittent`**: Cache fragmentation hidden in a "healthy" service.
+- **`hard_disk_pressure`**: WAL exhaustion on database creating disk I/O bottlenecks.
+- **`hard_dns_resolution`**: Network isolation masking downstream failures.
+- **`hard_config_drift`**: Deployment mismatch causing intermittent 503s.
 
-### Task 4: Network Partition Crisis 🌐 (Expert)
-- **Scenario**: Replica synchronization breaks due to a network partition between primary and replica databases
-- **Difficulty**: Requires reading replication lag signals and choosing failover at the right time
-- **Expected**: Higher-step expert diagnosis and remediation
+### 🌐 Expert Tasks
+- **`expert_network_partition`**: Network partition between primary and replica databases.
+- **`expert_database_replica_sync`**: Replica sync failure caused by WAL synchronization issues.
+- **`expert_deadlock`**: Database deadlock causing cascading transaction timeouts.
+- **`expert_cert_expiry`**: Expired TLS certificate rejecting all connections.
 
-### Task 5: Database Sync Failure 🧬 (Expert)
-- **Scenario**: Replica sync failure caused by WAL synchronization issues
-- **Difficulty**: Requires tracing replication health and recovering the database path safely
-- **Expected**: Higher-step expert diagnosis and remediation
+### 🎲 Generative Mode
+- **`random`**: Procedurally assigns one of the 12 incidents randomly per episode, providing an infinite curriculum for RL agents.
 
 ---
 
@@ -111,7 +106,7 @@ python train_grpo.py --steps 50 --model "unsloth/Llama-3.2-1B-Instruct"
 ✅ **Stochastic Metrics** — No two episodes are identical (Gaussian jitter on all fault values)  
 ✅ **Dense Reward Function** — 5-component reward: investigation, diagnosis, remediation, safety penalty, resolution bonus  
 ✅ **Production Realism** — Real failure modes: OOM kills, connection exhaustion, cache fragmentation  
-✅ **Scalable Difficulty** — 5 tasks from trivial to expert-level  
+✅ **Scalable Difficulty** — 12 discrete tasks from trivial to expert-level, plus infinite random generation  
 ✅ **Investigation-First Design** — Agents must investigate ≥2 services before diagnosis is credited  
 
 ---
@@ -152,7 +147,7 @@ Each service emulates:
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
 | GET | `/` | Health check |
-| GET | `/tasks` | List 5 available incident tasks |
+| GET | `/tasks` | List available incident tasks (12 scenarios + random) |
 | POST | `/reset` | Initialize episode with incident injection |
 | GET | `/state` | Current system state (ground truth withheld) |
 | POST | `/step` | Execute an agent action (investigate, diagnose, remediate) |
@@ -240,8 +235,9 @@ print(f"Final grade: {grade['score']}/1.0")
 
 ### Expected Scores
 - **Easy task**: 1.0 (optimal 1-step clear fix)
-- **Medium task**: 0.95 (4-step dependency chain)
-- **Hard task**: 0.95 (3-step hidden cause)
+- **Medium task**: ~0.95 (multi-step dependency chain)
+- **Hard task**: ~0.85-0.95 (hidden cause, deep investigation)
+- **Expert task**: ~0.80-0.90 (complex remediation sequence)
 
 Judges evaluate based on:
 1. **Runtime correctness** (does the environment work?)
@@ -295,7 +291,7 @@ SREBench/
 
 **All systems verified:**
 - ✅ All 11 API endpoints working
-- ✅ All 5 incident tasks completable (scores 0.79–0.95)
+- ✅ All 12 incident tasks completable and verified (scores 0.80–0.99)
 - ✅ 9/9 anti-exploit tests passing
 - ✅ Stochastic metrics confirmed (no deterministic values)
 - ✅ Docker builds successfully
