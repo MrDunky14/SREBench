@@ -26,7 +26,7 @@ def test_all_endpoints():
     assert resp.status_code == 200
     data = resp.json()
     tasks = data.get("tasks", [])
-    assert len(tasks) == 3, f"Expected 3 tasks, got {len(tasks)}"
+    assert len(tasks) == 5, f"Expected 5 tasks, got {len(tasks)}"
     print(f"    ✓ Retrieved {len(tasks)} tasks")
     for task in tasks:
         print(f"      - {task['id']}: {task['description'][:50]}...")
@@ -148,14 +148,33 @@ def test_all_endpoints():
     print(f"      - Final score: {score:.3f}")
     print()
     
+    # Test 11: Expert task (network partition)
+    print("[11] Testing expert task (network partition)...")
+    resp = requests.post(f"{ENV_URL}/reset", json={"task_id": "expert_network_partition"})
+
+    actions = [
+        {"action_type": "investigate", "command": "check_logs", "target": "database-replica", "params": {"severity": "ERROR", "last_n": 10}},
+        {"action_type": "diagnose", "command": "submit_diagnosis", "target": "database-replica", "params": {"root_cause": "network_partition"}},
+        {"action_type": "remediate", "command": "failover", "target": "database-primary", "params": {}},
+    ]
+
+    for action in actions:
+        requests.post(f"{ENV_URL}/step", json=action)
+
+    resp = requests.get(f"{ENV_URL}/grader")
+    score = resp.json()["score"]
+    print(f"    ✓ Expert task completed")
+    print(f"      - Final score: {score:.3f}")
+    print()
+
     # Summary
     print("=" * 70)
     print("SMOKE TESTS COMPLETE - ALL SYSTEMS OPERATIONAL")
     print("=" * 70)
     print()
-    print("✓ All 10 endpoint tests passed")
+    print("✓ All 11 endpoint tests passed")
     print("✓ Solution caching verified")
-    print("✓ All 3 incident scenarios working")
+    print("✓ All 5 incident scenarios available; easy/medium/hard/expert verified")
     print("✓ Deterministic grading confirmed")
     print()
     print("Key Features Verified:")

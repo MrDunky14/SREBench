@@ -51,6 +51,15 @@ def dashboard():
     raise HTTPException(status_code=404, detail="Dashboard not found")
 
 
+@app.get("/war_room.html")
+def war_room():
+    """Serve the war-room style demo dashboard."""
+    war_room_path = Path(__file__).parent.parent / "war_room.html"
+    if war_room_path.exists():
+        return FileResponse(str(war_room_path), media_type="text/html")
+    raise HTTPException(status_code=404, detail="War room dashboard not found")
+
+
 @app.get("/index.html")
 def home():
     """Serve the home page."""
@@ -77,6 +86,7 @@ def api_docs():
             "GET /leaderboard": "View test leaderboards",
             "POST /baseline": "Run baseline agent strategy",
             "GET /dashboard.html": "Interactive testing dashboard",
+            "GET /war_room.html": "War-room demo dashboard",
         },
     }
 
@@ -165,11 +175,12 @@ def step_env(action: IncidentAction):
 
 @app.get("/state")
 def get_state():
-    """Get full internal state."""
+    """Get agent-visible state (ground truth withheld to prevent reward hacking)."""
     if not env.infrastructure:
         raise HTTPException(status_code=400, detail="Environment not initialized. Call /reset first.")
     
     state = env.state()
+    # Ground truth is intentionally empty in the state returned to agents
     return state.dict()
 
 

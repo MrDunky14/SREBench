@@ -84,22 +84,30 @@ class Infrastructure:
     """Simulates a microservices infrastructure."""
     
     def __init__(self, seed: int = 42):
-        random.seed(seed)
+        self.rng = random.Random(seed)
         self.services: Dict[str, ServiceState] = {}
         self.incident_config = None
         self.affected_services: set = set()
         self._init_services()
+
+    def _jitter(self, value: float, pct: float, floor: float = 0.0, ceiling: float = 10000.0) -> float:
+        """Apply bounded gaussian noise so episodes are not strictly identical."""
+        sigma = max(0.001, abs(value) * pct)
+        return max(floor, min(ceiling, self.rng.gauss(value, sigma)))
     
     def _init_services(self):
         """Initialize all services in healthy state."""
         for name in SERVICES:
+            cpu_base = self.rng.uniform(10, 50)
+            mem_base = self.rng.uniform(30, 70)
+            lat_base = self.rng.uniform(50, 200)
             self.services[name] = ServiceState(
                 name=name,
                 status="healthy",
-                cpu_percent=random.uniform(10, 50),
-                memory_percent=random.uniform(30, 70),
+                cpu_percent=self._jitter(cpu_base, 0.08, floor=2.0, ceiling=95.0),
+                memory_percent=self._jitter(mem_base, 0.08, floor=5.0, ceiling=97.0),
                 error_rate_percent=0.0,
-                latency_p99_ms=random.uniform(50, 200),
+                latency_p99_ms=self._jitter(lat_base, 0.10, floor=10.0, ceiling=5000.0),
             )
     
     def inject_incident(self, incident_config: dict):
@@ -114,68 +122,88 @@ class Infrastructure:
         
         # Propagate through dependencies
         self._propagate_failures(root)
+
+        # Add a mild decoy signal to one healthy service so agents must correlate evidence.
+        self._inject_decoy_anomaly()
+
+    def _inject_decoy_anomaly(self):
+        """Apply a subtle non-failing anomaly to a healthy service."""
+        candidates = [
+            name for name, svc in self.services.items()
+            if name not in self.affected_services and svc.status == "healthy"
+        ]
+        if not candidates:
+            return
+
+        decoy = self.rng.choice(candidates)
+        svc = self.services[decoy]
+        svc.latency_p99_ms = min(900.0, svc.latency_p99_ms + self.rng.uniform(80.0, 180.0))
+        svc.error_rate_percent = min(3.5, svc.error_rate_percent + self.rng.uniform(0.2, 1.2))
+        svc.log_buffer.append(LogEntry(
+            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            level="WARN",
+            message="Transient upstream jitter observed; auto-retry stabilized requests.",
+        ))
     
     def _apply_fault(self, service_name: str, fault_type: str):
-        """Apply a fault to a service."""
+        """Apply a fault to a service with stochastic metrics."""
         svc = self.services[service_name]
         svc.fault_type = fault_type
         
         if fault_type == "oom_killed":
             svc.status = "down"
-            svc.memory_percent = 98.0
-            svc.error_rate_percent = 100.0
-            svc.cpu_percent = 5.0
-            svc.latency_p99_ms = 5000.0
+            svc.memory_percent = self._jitter(95.0, 0.04, floor=88.0, ceiling=99.5)
+            svc.error_rate_percent = self._jitter(95.0, 0.06, floor=80.0, ceiling=100.0)
+            svc.cpu_percent = self._jitter(8.0, 0.30, floor=2.0, ceiling=20.0)
+            svc.latency_p99_ms = self._jitter(5000.0, 0.15, floor=3000.0, ceiling=8000.0)
             self._gen_logs(service_name, fault_type)
             
         elif fault_type == "connection_pool_exhaustion":
             svc.status = "degraded"
-            svc.error_rate_percent = 85.0
-            svc.latency_p99_ms = 4500.0
-            svc.cpu_percent = 25.0
-            svc.memory_percent = 65.0
+            svc.error_rate_percent = self._jitter(85.0, 0.08, floor=70.0, ceiling=98.0)
+            svc.latency_p99_ms = self._jitter(4500.0, 0.12, floor=3000.0, ceiling=7000.0)
+            svc.cpu_percent = self._jitter(25.0, 0.15, floor=12.0, ceiling=45.0)
+            svc.memory_percent = self._jitter(65.0, 0.10, floor=50.0, ceiling=80.0)
             self._gen_logs(service_name, fault_type)
             
         elif fault_type == "cache_fragmentation":
             # Cache shows as healthy but has subtle issues
             svc.status = "healthy"
-            svc.cpu_percent = 12.0
-            svc.memory_percent = 43.0
-            svc.error_rate_percent = 0.0
-            svc.latency_p99_ms = 2.0
-            svc.metrics_history = {"cache_hit_ratio": 72}  # degraded from normal 98%
+            svc.cpu_percent = self._jitter(12.0, 0.20, floor=5.0, ceiling=25.0)
+            svc.memory_percent = self._jitter(43.0, 0.12, floor=30.0, ceiling=58.0)
+            svc.error_rate_percent = self._jitter(1.5, 0.50, floor=0.0, ceiling=5.0)
+            svc.latency_p99_ms = self._jitter(2.0, 0.30, floor=0.5, ceiling=6.0)
+            svc.metrics_history = {"cache_hit_ratio": self.rng.randint(62, 78)}
             self._gen_logs(service_name, fault_type)
         
         elif fault_type == "network_partition":
-            # Network partition between primary and replica
             svc.status = "degraded"
-            svc.error_rate_percent = 65.0
-            svc.latency_p99_ms = 3200.0
-            svc.cpu_percent = 45.0
-            svc.memory_percent = 78.0
-            svc.metrics_history = {"replication_lag_ms": 5000}  # High lag
+            svc.error_rate_percent = self._jitter(65.0, 0.10, floor=45.0, ceiling=85.0)
+            svc.latency_p99_ms = self._jitter(3200.0, 0.15, floor=2000.0, ceiling=5500.0)
+            svc.cpu_percent = self._jitter(45.0, 0.12, floor=28.0, ceiling=65.0)
+            svc.memory_percent = self._jitter(78.0, 0.08, floor=65.0, ceiling=90.0)
+            svc.metrics_history = {"replication_lag_ms": self.rng.randint(3000, 8000)}
             self._gen_logs(service_name, fault_type)
         
         elif fault_type == "database_replica_sync_failure":
-            # Database replica cannot sync
             svc.status = "degraded"
-            svc.error_rate_percent = 35.0
-            svc.latency_p99_ms = 2100.0
-            svc.cpu_percent = 55.0
-            svc.memory_percent = 82.0
-            svc.metrics_history = {"replication_lag_seconds": 45}  # Severe lag
+            svc.error_rate_percent = self._jitter(35.0, 0.15, floor=18.0, ceiling=55.0)
+            svc.latency_p99_ms = self._jitter(2100.0, 0.12, floor=1200.0, ceiling=3500.0)
+            svc.cpu_percent = self._jitter(55.0, 0.10, floor=38.0, ceiling=72.0)
+            svc.memory_percent = self._jitter(82.0, 0.06, floor=72.0, ceiling=92.0)
+            svc.metrics_history = {"replication_lag_seconds": self.rng.randint(20, 90)}
             self._gen_logs(service_name, fault_type)
     
     def _propagate_failures(self, failed_service: str):
-        """Services depending on failed service become degraded."""
+        """Services depending on failed service become degraded with noise."""
         for name, config in SERVICES.items():
             if failed_service in config["depends_on"] and name not in self.affected_services:
                 svc = self.services[name]
                 svc.status = "degraded"
-                svc.error_rate_percent = 45.0
-                svc.latency_p99_ms = 2800.0
-                svc.cpu_percent = 65.0
-                svc.memory_percent = 72.0
+                svc.error_rate_percent = self._jitter(45.0, 0.15, floor=25.0, ceiling=65.0)
+                svc.latency_p99_ms = self._jitter(2800.0, 0.12, floor=1800.0, ceiling=4200.0)
+                svc.cpu_percent = self._jitter(65.0, 0.10, floor=48.0, ceiling=82.0)
+                svc.memory_percent = self._jitter(72.0, 0.08, floor=58.0, ceiling=85.0)
                 self.affected_services.add(name)
                 self._propagate_failures(name)
     
@@ -187,20 +215,20 @@ class Infrastructure:
         for i, template in enumerate(templates[:3]):
             # Prepare all possible format keywords
             format_kwargs = {
-                "mem": 95,
-                "gc_ms": 250,
-                "pool_pct": 100,
-                "max_conn": 200,
-                "timeout": 5000,
-                "n_queued": 150,
-                "hit_ratio": 72,
-                "frag_ratio": 2.1,
-                "key": "user:12345",
+                "mem": self.rng.randint(91, 99),
+                "gc_ms": self.rng.randint(220, 420),
+                "pool_pct": self.rng.randint(95, 100),
+                "max_conn": self.rng.choice([180, 200, 220]),
+                "timeout": self.rng.choice([3500, 5000, 7000]),
+                "n_queued": self.rng.randint(100, 240),
+                "hit_ratio": self.rng.randint(62, 78),
+                "frag_ratio": round(self.rng.uniform(1.7, 2.6), 2),
+                "key": f"user:{self.rng.randint(1000, 99999)}",
                 "endpoint": "/api/charge",
-                "lag": "5000ms",
-                "lag_ms": 5000,
-                "lag_seconds": 45,
-                "timeout_ms": 5000,
+                "lag": str(self.rng.randint(3200, 7800)),
+                "lag_ms": self.rng.randint(3000, 9000),
+                "lag_seconds": self.rng.randint(20, 90),
+                "timeout_ms": self.rng.choice([3500, 5000, 7000]),
             }
             
             # Format template with available kwargs (ignore missing ones)
@@ -210,10 +238,13 @@ class Infrastructure:
                 # Fallback if formatting fails
                 msg = template
             
+            ts = datetime.now().replace(microsecond=0)
+            ts = ts.replace(second=max(0, min(59, ts.second - self.rng.randint(0, 20) + i)))
+            pid = self.rng.randint(1000, 9999)
             svc.log_buffer.append(LogEntry(
-                timestamp=f"2024-01-15 03:42:{10+i:02d}",
+                timestamp=ts.strftime("%Y-%m-%d %H:%M:%S"),
                 level=template.split()[0],
-                message=msg,
+                message=f"{msg} [pid={pid}]",
             ))
     
     def execute_action(self, action) -> str:
@@ -304,6 +335,29 @@ class Infrastructure:
             # Restarting cache without handling fragmentation doesn't help much
             return f"~ Service {target} restarted. Fragmentation persists; consider flush_cache."
         
+        elif svc.fault_type == "database_replica_sync_failure":
+            # Restart re-syncs the WAL and recovers replication
+            svc.status = "healthy"
+            svc.memory_percent = 50.0
+            svc.error_rate_percent = 0.0
+            svc.cpu_percent = 30.0
+            svc.latency_p99_ms = 80.0
+            svc.fault_type = None
+            svc.metrics_history = {}
+            self._recover_dependents(target)
+            return f"✓ Service {target} restarted. WAL sync restored. Replication recovered."
+        
+        elif svc.fault_type == "network_partition":
+            # Restart helps but failover is the better fix
+            svc.status = "healthy"
+            svc.memory_percent = 55.0
+            svc.error_rate_percent = 2.0
+            svc.cpu_percent = 35.0
+            svc.latency_p99_ms = 150.0
+            svc.fault_type = None
+            self._recover_dependents(target)
+            return f"~ Service {target} restarted. Network connectivity partially restored. Consider failover for full recovery."
+        
         else:
             return f"~ Service {target} restarted. No significant state change."
     
@@ -314,9 +368,9 @@ class Infrastructure:
                 svc = self.services[name]
                 svc.status = "healthy"
                 svc.error_rate_percent = 0.0
-                svc.latency_p99_ms = random.uniform(80, 150)
-                svc.cpu_percent = random.uniform(20, 40)
-                svc.memory_percent = random.uniform(40, 60)
+                svc.latency_p99_ms = self.rng.uniform(80, 150)
+                svc.cpu_percent = self.rng.uniform(20, 40)
+                svc.memory_percent = self.rng.uniform(40, 60)
                 self._recover_dependents(name)
     
     def _scale_service(self, target: str, params: dict) -> str:
@@ -360,7 +414,7 @@ class Infrastructure:
                     if s.status == "degraded":
                         s.status = "healthy"
                         s.error_rate_percent = 0.0
-                        s.latency_p99_ms = random.uniform(100, 200)
+                        s.latency_p99_ms = self.rng.uniform(100, 200)
                         # Recover services that depend on this one
                         self._recover_dependents(name)
             return f"✓ Flushed cache on {target}. Fragmentation resolved. Cache hit ratio recovered to 97%."
@@ -368,12 +422,19 @@ class Infrastructure:
         return f"~ Flushed cache on {target}. No fragmentation detected."
     
     def _rollback(self, target: str) -> str:
-        """Rollback a service."""
+        """Rollback a service — partial recovery only, not a universal fix."""
         svc = self.services[target]
-        svc.status = "healthy"
-        svc.error_rate_percent = 0.0
-        svc.fault_type = None
-        return f"✓ Rolled back {target}. Status: HEALTHY"
+        if svc.fault_type is None and svc.status == "healthy":
+            return f"~ Nothing to rollback on {target}. Service is already healthy."
+        # Rollback provides partial relief, not full recovery
+        svc.error_rate_percent = max(0, svc.error_rate_percent * 0.6)
+        svc.latency_p99_ms = max(50, svc.latency_p99_ms * 0.7)
+        if svc.error_rate_percent < 5.0:
+            svc.status = "healthy"
+            svc.fault_type = None
+        else:
+            svc.status = "degraded"
+        return f"~ Rolled back {target}. Partial recovery — error rate now {svc.error_rate_percent:.1f}%. Root cause may persist."
     
     def _failover(self, target: str) -> str:
         """Failover to replica (database only)."""

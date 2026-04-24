@@ -60,3 +60,37 @@ docker-compose.override.yml
 # Project-specific outputs
 sre-bench/.baseline_runs/
 sre-bench/.openenv/
+
+# Training checkpoints (large)
+checkpoints/
+*.pt
+*.safetensors
+
+# Test & debug files (local only)
+test_exploits.py
+test_smart_agent.py
+reward_jacking_test.py
+FINAL_VERIFICATION.py
+comprehensive_test.py
+expert_task_solver.py
+verify_enhancements.py
+inference_backup.py
+inference_v2.py
+sample_inference.py
+client.py
+
+# Audit, planning, and temporary markdown docs
+AUDIT_REPORT_*.md
+CODEBASE_REFERENCE.md
+COMPLETION_SUMMARY.md
+ENHANCEMENTS.md
+IMPROVEMENT_PLAN.md
+OPTIMIZATION_LOG.md
+PUSH_APPROVAL_CHECKLIST.md
+SUBMISSION_READY.md
+SUBMISSION_REPORT.md
+audit_results.json
+checking_plan_suggestion.md
+implementation_plan.md
+prevalidation_scrpit.txt
+\[External\]*.md

@@ -14,6 +14,17 @@ You must diagnose and remediate microservice outages across a realistic 6-servic
 
 ---
 
+## 🏆 Hackathon Submission Links (Mandatory)
+
+| Resource | Link |
+|---|---|
+| **🚀 Hugging Face Space** | [https://huggingface.co/spaces/CreatorNeuron/sre-bench](https://huggingface.co/spaces/CreatorNeuron/sre-bench) |
+| **📓 Colab Notebook** | [https://colab.research.google.com/drive/[YOUR_COLAB_ID_HERE]](https://colab.research.google.com/drive/[YOUR_COLAB_ID_HERE]) *(Note: Used Kaggle T4 for 30h quota)* |
+| **💻 Code Repository** | [https://github.com/MrDunky14/SREBench](https://github.com/MrDunky14/SREBench) |
+| **📝 HF Blog Post** | [SREBench: Teaching LLMs to Fix Production Incidents](BLOG_POST.md) |
+
+---
+
 ## 🎯 Quick Links
 
 | | Link |
@@ -22,12 +33,38 @@ You must diagnose and remediate microservice outages across a realistic 6-servic
 | **📖 Full Docs** | [sre-bench/README.md](sre-bench/README.md) |
 | **⚙️ API Docs** | https://creatorneuron-sre-bench.hf.space/docs |
 | **💻 GitHub Repo** | https://github.com/MrDunky14/SREBench |
+| **📜 Blog Post** | [SREBench: Teaching LLMs to Fix Production Incidents](BLOG_POST.md) |
+| **🧪 Latest Audit** | [Audit Report (2026-04-24)](AUDIT_REPORT_2026-04-24.md) |
+| **📋 Audit JSON** | [audit_results.json](audit_results.json) |
+
+---
+
+## 📰 Recent News
+
+### 🚀 **GRPO Training with TRL & Unsloth** (April 2026)
+
+We've released `train_grpo.py`—a complete training pipeline for fine-tuning LLMs on SREBench using:
+
+- **GRPO** (Generative Reward-Optimized) training from [TRL](https://huggingface.co/docs/trl/)
+- **Unsloth** for 4-bit quantization and efficient LoRA fine-tuning
+- **Curriculum learning** (easy → medium → hard incidents)
+
+**Quick Start:**
+```bash
+pip install -r requirements.txt
+cd sre-bench
+python train_grpo.py --steps 50 --model "unsloth/Llama-3.2-1B-Instruct"
+```
+
+**Results**: Baseline collection and training in progress. Run `--dry-run` for baseline plots.
+
+📖 **Full details**: [Read the blog post →](BLOG_POST.md)
 
 ---
 
 ## 🏗️ What You Get
 
-**3 production-grade incident tasks with escalating difficulty:**
+**5 production-grade incident tasks with escalating difficulty:**
 
 ### Task 1: Service Restart ⚡ (Easy)
 - **Scenario**: Payment service OOMKilled due to memory leak
@@ -47,16 +84,27 @@ You must diagnose and remediate microservice outages across a realistic 6-servic
 - **Expected**: ~3 steps, 0.95 score
 - **Tests**: Whether agents can find non-obvious root causes
 
+### Task 4: Network Partition Crisis 🌐 (Expert)
+- **Scenario**: Replica synchronization breaks due to a network partition between primary and replica databases
+- **Difficulty**: Requires reading replication lag signals and choosing failover at the right time
+- **Expected**: Higher-step expert diagnosis and remediation
+
+### Task 5: Database Sync Failure 🧬 (Expert)
+- **Scenario**: Replica sync failure caused by WAL synchronization issues
+- **Difficulty**: Requires tracing replication health and recovering the database path safely
+- **Expected**: Higher-step expert diagnosis and remediation
+
 ---
 
 ## 🌟 Key Features
 
 ✅ **OpenEnv Compliant** — Follows official OpenEnv specification  
-✅ **Solution Caching** — Deterministic grading with natural variance (no artificial penalties)  
-✅ **Dense Reward Function** — 5-component reward: investigation, diagnosis, remediation, time penalty, resolution bonus  
+✅ **Anti-Exploit Hardened** — Ground truth hidden, shotgun restarts penalized, rollback neutered  
+✅ **Stochastic Metrics** — No two episodes are identical (Gaussian jitter on all fault values)  
+✅ **Dense Reward Function** — 5-component reward: investigation, diagnosis, remediation, safety penalty, resolution bonus  
 ✅ **Production Realism** — Real failure modes: OOM kills, connection exhaustion, cache fragmentation  
-✅ **Scalable Difficulty** — Same environment, different scenarios from trivial to genuinely hard  
-✅ **Deterministic Seeding** — Reproducible incidents and metrics for fair evaluation  
+✅ **Scalable Difficulty** — 5 tasks from trivial to expert-level  
+✅ **Investigation-First Design** — Agents must investigate ≥2 services before diagnosis is credited  
 
 ---
 
@@ -91,17 +139,21 @@ Each service emulates:
 
 ---
 
-## 📡 API Endpoints (7 total)
+## 📡 API Endpoints (11 total)
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
 | GET | `/` | Health check |
-| GET | `/tasks` | List 3 available incident tasks |
+| GET | `/tasks` | List 5 available incident tasks |
 | POST | `/reset` | Initialize episode with incident injection |
-| GET | `/state` | Current system state + ground truth diagnosis |
+| GET | `/state` | Current system state (ground truth withheld) |
 | POST | `/step` | Execute an agent action (investigate, diagnose, remediate) |
 | GET | `/grader` | Get final episode score |
+| GET | `/leaderboard` | View task leaderboards |
 | POST | `/baseline` | Run baseline strategy end-to-end |
+| GET | `/dashboard.html` | Interactive dashboard |
+| GET | `/index.html` | Static homepage |
+| GET | `/docs-api` | Machine-readable API summary |
 
 **Interactive API docs available at:** https://creatorneuron-sre-bench.hf.space/docs (Swagger UI)
 
@@ -234,16 +286,16 @@ SREBench/
 ## ✅ Verification & Deployment
 
 **All systems verified:**
-- ✅ All 7 API endpoints working
-- ✅ All 3 incident tasks completable
-- ✅ Solution caching reproducible
-- ✅ Deterministic grading confirmed
+- ✅ All 11 API endpoints working
+- ✅ All 5 incident tasks completable (scores 0.79–0.95)
+- ✅ 9/9 anti-exploit tests passing
+- ✅ Stochastic metrics confirmed (no deterministic values)
 - ✅ Docker builds successfully
-- ✅ Deployment live on HuggingFace Spaces
+- ✅ GRPO training script tested (dry-run + GPU modes)
 
 **Repository**: Clean, documented, no secrets exposed
 
-**Status**: Ready for submission
+**Status**: Hardened and ready for Grand Finale
 
 ---
 
@@ -257,6 +309,4 @@ For architectural details, reward function specifics, observation/action space s
 
 **Live Environment**: https://huggingface.co/spaces/CreatorNeuron/sre-bench  
 **GitHub Repository**: https://github.com/MrDunky14/SREBench  
-**Deadline**: April 7, 2026
-
-**Expected Score**: 49–55 / 55 points
+**Grand Finale**: April 25-26, 2026 (Bangalore)

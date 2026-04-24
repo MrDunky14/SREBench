@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SREBench War Room</title>
+  <style>
+    :root {
+      --bg: #070b14;
+      --panel: #111a2b;
+      --panel-soft: #15233a;
+      --ink: #d7e7ff;
+      --muted: #8fa8d4;
+      --ok: #33d17a;
+      --warn: #ffb84d;
+      --down: #ff5d73;
+      --edge: #2f4469;
+      --accent: #3ea6ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% 10%, #16315a 0, transparent 28%),
+        radial-gradient(circle at 90% 20%, #3a184b 0, transparent 24%),
+        linear-gradient(180deg, #05070f 0%, var(--bg) 100%);
+      min-height: 100vh;
+    }
+    .header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--edge);
+      background: rgba(10, 16, 28, 0.86);
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0.04em;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    select, button {
+      background: var(--panel-soft);
+      color: var(--ink);
+      border: 1px solid var(--edge);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font: inherit;
+    }
+    button { cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 14px;
+      padding: 14px;
+    }
+    .panel {
+      background: rgba(17, 26, 43, 0.92);
+      border: 1px solid var(--edge);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .panel h2 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .sla {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .sla-track {
+      height: 18px;
+      border-radius: 9px;
+      border: 1px solid #334f80;
+      background: #0e1422;
+      overflow: hidden;
+    }
+    .sla-bar {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #29d17d, #f0b03f 70%, #fb5a70);
+      transition: width 280ms ease;
+    }
+    .sla-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .graph-wrap {
+      border: 1px solid var(--edge);
+      border-radius: 10px;
+      background: #0b1220;
+      padding: 10px;
+      overflow: hidden;
+    }
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+      min-height: 300px;
+    }
+    .node {
+      stroke: #0f1d35;
+      stroke-width: 2;
+      transition: fill 180ms ease, filter 180ms ease;
+    }
+    .edge {
+      stroke: #3b517a;
+      stroke-width: 2;
+      opacity: 0.8;
+    }
+    .label {
+      fill: #dbe9ff;
+      font-size: 11px;
+      text-anchor: middle;
+      pointer-events: none;
+    }
+
+    .timeline {
+      max-height: 360px;
+      overflow: auto;
+      display: grid;
+      gap: 7px;
+    }
+    .event {
+      border: 1px solid var(--edge);
+      background: #0d1628;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 12px;
+    }
+    .event .meta {
+      color: var(--muted);
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .services {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .svc {
+      border: 1px solid var(--edge);
+      background: #0d1628;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 12px;
+    }
+    .svc strong { display: block; margin-bottom: 4px; }
+
+    .status-healthy { color: var(--ok); }
+    .status-degraded { color: var(--warn); }
+    .status-down { color: var(--down); }
+
+    @media (max-width: 960px) {
+      .layout { grid-template-columns: 1fr; }
+      .services { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>SREBench War Room</h1>
+    <div class="controls">
+      <select id="taskSelect"></select>
+      <button id="resetBtn">Reset Incident</button>
+      <button id="pollBtn">Auto Poll: ON</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <section class="panel">
+      <h2>Topology and SLA</h2>
+      <div class="sla">
+        <div class="sla-track"><div id="slaBar" class="sla-bar"></div></div>
+        <div class="sla-meta">
+          <span id="slaLeft">SLA Remaining: --</span>
+          <span id="stepCount">Steps: 0</span>
+        </div>
+      </div>
+
+      <div class="graph-wrap">
+        <svg viewBox="0 0 700 380" id="graphSvg" aria-label="Service dependency graph"></svg>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Action Timeline</h2>
+      <div id="timeline" class="timeline"></div>
+
+      <h2 style="margin-top: 12px;">Current Service Metrics</h2>
+      <div id="services" class="services"></div>
+    </section>
+  </div>
+
+  <script>
+    const BASE = "";
+    let autoPoll = true;
+    let timer = null;
+
+    const NODE_POS = {
+      "api-gateway": [350, 50],
+      "user-service": [190, 140],
+      "payment-service": [510, 140],
+      "database-primary": [350, 250],
+      "database-replica": [510, 330],
+      "cache-redis": [190, 330]
+    };
+
+    const EDGES = [
+      ["api-gateway", "user-service"],
+      ["api-gateway", "payment-service"],
+      ["user-service", "database-primary"],
+      ["user-service", "cache-redis"],
+      ["payment-service", "database-primary"],
+      ["payment-service", "cache-redis"],
+      ["database-replica", "database-primary"]
+    ];
+
+    async function jget(path, opts = {}) {
+      const r = await fetch(BASE + path, opts);
+      if (!r.ok) {
+        throw new Error(path + " -> " + r.status);
+      }
+      return r.json();
+    }
+
+    function statusColor(status) {
+      if (status === "healthy") return "#33d17a";
+      if (status === "degraded") return "#ffb84d";
+      return "#ff5d73";
+    }
+
+    function addEvent(text, meta = "") {
+      const box = document.createElement("div");
+      box.className = "event";
+      const ts = new Date().toLocaleTimeString();
+      box.innerHTML = `<div class="meta"><span>${ts}</span><span>${meta}</span></div><div>${text}</div>`;
+      const timeline = document.getElementById("timeline");
+      timeline.prepend(box);
+      while (timeline.children.length > 60) {
+        timeline.removeChild(timeline.lastChild);
+      }
+    }
+
+    function renderGraph(services) {
+      const svcMap = Object.fromEntries(services.map(s => [s.name, s]));
+      const svg = document.getElementById("graphSvg");
+      svg.innerHTML = "";
+
+      EDGES.forEach(([from, to]) => {
+        const [x1, y1] = NODE_POS[from];
+        const [x2, y2] = NODE_POS[to];
+        const edge = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        edge.setAttribute("x1", x1);
+        edge.setAttribute("y1", y1);
+        edge.setAttribute("x2", x2);
+        edge.setAttribute("y2", y2);
+        edge.setAttribute("class", "edge");
+        svg.appendChild(edge);
+      });
+
+      services.forEach((svc) => {
+        const [x, y] = NODE_POS[svc.name] || [50, 50];
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        c.setAttribute("cx", x);
+        c.setAttribute("cy", y);
+        c.setAttribute("r", 38);
+        c.setAttribute("class", "node");
+        c.setAttribute("fill", statusColor(svc.status));
+        g.appendChild(c);
+
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", x);
+        t.setAttribute("y", y + 4);
+        t.setAttribute("class", "label");
+        t.textContent = svc.name;
+        g.appendChild(t);
+
+        const t2 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t2.setAttribute("x", x);
+        t2.setAttribute("y", y + 22);
+        t2.setAttribute("class", "label");
+        t2.textContent = svc.status;
+        g.appendChild(t2);
+
+        svg.appendChild(g);
+      });
+    }
+
+    function renderServices(services) {
+      const root = document.getElementById("services");
+      root.innerHTML = "";
+      for (const svc of services) {
+        const item = document.createElement("div");
+        item.className = "svc";
+        item.innerHTML = `
+          <strong>${svc.name}</strong>
+          <div class="status-${svc.status}">status: ${svc.status}</div>
+          <div>cpu: ${svc.cpu_percent.toFixed(1)}%</div>
+          <div>mem: ${svc.memory_percent.toFixed(1)}%</div>
+          <div>err: ${svc.error_rate_percent.toFixed(1)}%</div>
+          <div>p99: ${svc.latency_p99_ms.toFixed(0)}ms</div>
+        `;
+        root.appendChild(item);
+      }
+    }
+
+    function updateSla(obs) {
+      const remaining = Number(obs.sla_remaining_minutes || 0);
+      const ratio = Math.max(0, Math.min(1, remaining / 30));
+      document.getElementById("slaBar").style.width = (ratio * 100).toFixed(1) + "%";
+      document.getElementById("slaLeft").textContent = `SLA Remaining: ${remaining.toFixed(1)} min`;
+      document.getElementById("stepCount").textContent = `Steps: ${obs.steps_taken || 0}`;
+    }
+
+    async function pollState() {
+      try {
+        const state = await jget("/state");
+        const obs = {
+          steps_taken: state.step_count,
+          sla_remaining_minutes: Math.max(0, 30 - state.step_count)
+        };
+        updateSla(obs);
+        renderGraph(state.services || []);
+        renderServices(state.services || []);
+      } catch (err) {
+        // ignore poll errors when no episode yet
+      }
+    }
+
+    async function resetSelectedTask() {
+      const taskId = document.getElementById("taskSelect").value;
+      const obs = await jget("/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task_id: taskId })
+      });
+      updateSla(obs);
+      renderGraph(obs.system_dashboard || []);
+      renderServices(obs.system_dashboard || []);
+      addEvent(obs.alert_message || "Incident reset", taskId);
+    }
+
+    async function loadTasks() {
+      const data = await jget("/tasks");
+      const sel = document.getElementById("taskSelect");
+      sel.innerHTML = "";
+      for (const task of data.tasks) {
+        const opt = document.createElement("option");
+        opt.value = task.id;
+        opt.textContent = `${task.id} (${task.difficulty})`;
+        sel.appendChild(opt);
+      }
+    }
+
+    async function init() {
+      await loadTasks();
+      document.getElementById("resetBtn").addEventListener("click", async () => {
+        try {
+          await resetSelectedTask();
+        } catch (err) {
+          addEvent("Reset failed: " + err.message, "error");
+        }
+      });
+
+      document.getElementById("pollBtn").addEventListener("click", () => {
+        autoPoll = !autoPoll;
+        document.getElementById("pollBtn").textContent = "Auto Poll: " + (autoPoll ? "ON" : "OFF");
+        if (autoPoll && !timer) {
+          timer = setInterval(pollState, 1500);
+        }
+        if (!autoPoll && timer) {
+          clearInterval(timer);
+          timer = null;
+        }
+      });
+
+      await resetSelectedTask();
+      timer = setInterval(pollState, 1500);
+    }
+
+    init().catch((err) => {
+      addEvent("Initialization failed: " + err.message, "error");
+    });
+  </script>
+</body>
+</html>

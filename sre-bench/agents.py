@@ -266,8 +266,8 @@ if __name__ == "__main__":
         results = benchmark_agent(agent_class, task, num_episodes=5)
         
         print(f"  Episodes: {results['episodes']}")
-            print(f"  Avg Reward: {results['avg_reward']:.3f}")
-            print(f"  Best Reward: {results['best_reward']:.3f}")
-            print(f"  Success Rate: {results['success_rate']:.1%}")
+        print(f"  Avg Reward: {results['avg_reward']:.3f}")
+        print(f"  Best Reward: {results['best_reward']:.3f}")
+        print(f"  Success Rate: {results['success_rate']:.1%}")
     
     print("\n✅ Agent benchmarking complete!")

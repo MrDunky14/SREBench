@@ -67,6 +67,12 @@ class SREBenchEnvironment:
         self.actions_taken = []
         self.last_action_result = ""
         self.sla_remaining_minutes = 30.0
+
+        # Episode-level behavior tracking for anti-exploit and richer rewards.
+        self.investigated_targets = set()
+        self.restart_targets = set()
+        self.failed_remediations = 0
+        self.shotgun_penalty_applied = False
         
         # Solution caching for reproducibility
         self.solution_cache = {}  # {task_id: {'steps': int, 'reward': float, 'actions': list}}
@@ -83,14 +89,20 @@ class SREBenchEnvironment:
         self.cumulative_reward = 0.0
         self.actions_taken = []
         self.sla_remaining_minutes = 30.0
+        self.investigated_targets = set()
+        self.restart_targets = set()
+        self.failed_remediations = 0
+        self.shotgun_penalty_applied = False
         
         # Create new infrastructure and inject incident
         incident_config = INCIDENTS.get(task_id, INCIDENTS["easy_restart"])
         self.infrastructure = Infrastructure(seed=hash(self.episode_id) % (2**31))
         self.infrastructure.inject_incident(incident_config)
         
-        # Generate initial observation
-        self.last_action_result = f"Incident detected: {incident_config['description']}"
+        # Generate initial observation — do NOT reveal the fault type
+        incident_config = INCIDENTS.get(task_id, INCIDENTS["easy_restart"])
+        root_svc = incident_config["root_cause_service"]
+        self.last_action_result = f"Incident detected: Service degradation reported. Multiple alerts firing. Begin investigation."
         return self._make_observation()
     
     def step(self, action: IncidentAction) -> Tuple[IncidentObservation, IncidentReward, bool, Dict]:
@@ -156,8 +168,9 @@ class SREBenchEnvironment:
             diagnosis_submitted=self.diagnosis_submitted,
             actions_taken=self.actions_taken,
             cumulative_reward=self.cumulative_reward,
-            ground_truth_diagnosis=incident_config.get("ground_truth_diagnosis", ""),
-            ground_truth_fix=incident_config.get("ground_truth_fix", ""),
+            # Ground truth is intentionally withheld from agent-visible state
+            ground_truth_diagnosis="",
+            ground_truth_fix="",
         )
     
     def _make_observation(self) -> IncidentObservation:
@@ -192,19 +205,33 @@ class SREBenchEnvironment:
                 investigation_reward = -0.02
         breakdown["investigation"] = investigation_reward
         reward += investigation_reward
+
+        # Encourage broad but purposeful investigation coverage.
+        exploration_reward = 0.0
+        if action.action_type == "investigate" and action.target not in self.investigated_targets:
+            exploration_reward = 0.02
+            self.investigated_targets.add(action.target)
+        breakdown["exploration"] = exploration_reward
+        reward += exploration_reward
         
         # 2. Diagnosis accuracy
         diagnosis_reward = 0.0
         if action.action_type == "diagnose" and action.command == "submit_diagnosis":
-            self.diagnosis_submitted = action.params.get("root_cause", "")
-            incident_config = INCIDENTS.get(self.task_id, {})
-            ground_truth = incident_config.get("ground_truth_diagnosis", "")
-            
-            if self.diagnosis_submitted.lower() == ground_truth.lower():
-                diagnosis_reward = 0.25
-                self.correct_diagnosis = True
+            # Require at least 2 investigation actions before diagnosis is credited
+            investigation_count = len(self.investigated_targets)
+            if investigation_count < 2:
+                diagnosis_reward = -0.15  # Premature diagnosis penalty
+                self.diagnosis_submitted = action.params.get("root_cause", "")
             else:
-                diagnosis_reward = -0.10
+                self.diagnosis_submitted = action.params.get("root_cause", "")
+                incident_config = INCIDENTS.get(self.task_id, {})
+                ground_truth = incident_config.get("ground_truth_diagnosis", "")
+                
+                if self.diagnosis_submitted.lower() == ground_truth.lower():
+                    diagnosis_reward = 0.25
+                    self.correct_diagnosis = True
+                else:
+                    diagnosis_reward = -0.10
         breakdown["diagnosis"] = diagnosis_reward
         reward += diagnosis_reward
         
@@ -221,8 +248,32 @@ class SREBenchEnvironment:
                 remediation_reward = 0.15
             else:
                 remediation_reward = 0.0
+
+            if "no significant state change" in self.last_action_result.lower() or "immediately degraded again" in self.last_action_result.lower() or "partial recovery" in self.last_action_result.lower():
+                self.failed_remediations += 1
         breakdown["remediation"] = remediation_reward
         reward += remediation_reward
+
+        # Penalize risky remediation patterns that game the environment.
+        safety_penalty = 0.0
+        # Penalty for remediating services that are NOT the root cause
+        root_cause = INCIDENTS.get(self.task_id, {}).get("root_cause_service", "")
+        if action.action_type == "remediate" and action.target != root_cause:
+            safety_penalty -= 0.15  # Non-root-cause remediation penalty
+
+        if action.command == "restart":
+            self.restart_targets.add(action.target)
+
+        # Trigger shotgun penalty at 2 restarts (was 3)
+        if len(self.restart_targets) >= 2 and not self.shotgun_penalty_applied:
+            safety_penalty -= 0.50
+            self.shotgun_penalty_applied = True
+
+        if self.failed_remediations >= 2:
+            safety_penalty -= 0.08
+
+        breakdown["safety_penalty"] = safety_penalty
+        reward += safety_penalty
         
         # 4. Time pressure penalty
         time_penalty = -0.02

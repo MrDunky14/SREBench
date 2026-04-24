@@ -4,7 +4,15 @@ A realistic OpenEnv benchmark environment for training and evaluating AI agents 
 
 ## Overview
 
-SREBench simulates a production microservices system with 6 interdependent services. An agent must investigate system health dashboards, analyze logs and metrics, diagnose root causes across service dependencies, and execute remediation actions—all under SLA time pressure.
+SREBench simulates a production microservices system with 6 interdependent services. An agent must investigate system health dashboards, analyze logs and metrics, diagnose root causes across service dependencies, and execute remediation actions all under SLA time pressure.
+
+## Latest Verification Status
+
+- Local API and edge-case audit: 9/9 passed
+- Live Space API audit: 4/5 passed
+- Standards score: 90/100
+- Full details: [../AUDIT_REPORT_2026-04-24.md](../AUDIT_REPORT_2026-04-24.md)
+- Machine-readable results: [../audit_results.json](../audit_results.json)
 
 This is not a game. This is literally what engineers at Meta, Google, Amazon, and Microsoft do on their on-call rotations. Every week. You will use the exact tools and reasoning patterns that world-class SREs employ.
 
@@ -57,6 +65,8 @@ Each service tracks:
 - Metrics history (cache hit ratios, connection counts, etc.)
 
 ## Tasks
+
+The live environment currently exposes 5 tasks: 3 core incidents plus 2 expert scenarios.
 
 ### Task 1: Service Restart (Easy)
 **Scenario**: `payment-service` is OOMKilled due to a memory leak.
@@ -363,7 +373,11 @@ Endpoints:
 - **POST `/step`** — Execute action. Body: `IncidentAction`
 - **GET `/state`** — Get full internal state
 - **GET `/grader`** — Grade current episode. Returns score: 0.0–1.0
+- **GET `/leaderboard`** — View per-task leaderboard entries
 - **POST `/baseline`** — Run one episode with baseline strategy
+- **GET `/dashboard.html`** — Interactive dashboard
+- **GET `/index.html`** — Static landing page
+- **GET `/docs-api`** — Machine-readable API summary
 
 ## Features
 
@@ -377,7 +391,7 @@ Endpoints:
 
 ✅ **Reproducible graders** — deterministic scoring, no two scores identical
 
-✅ **Baseline script** — runs all 3 tasks end-to-end
+✅ **Baseline script** — runs all 5 tasks end-to-end
 
 ✅ **Dockerized** — single command to deploy
 
@@ -472,7 +486,7 @@ for task, res in results.items():
 Pre-built training script with multiple algorithms:
 
 ```bash
-# Train PPO
+# Train PPO (using Stable-Baselines3)
 python train_agents.py --agent ppo --task easy_restart --timesteps 50000
 
 # Train A2C
@@ -484,6 +498,34 @@ python train_agents.py --agent curriculum --timesteps 30000
 # Evaluate
 python train_agents.py --agent ppo --task easy_restart --evaluate
 ```
+
+### GRPO Training with TRL & Unsloth (LLM Fine-tuning)
+
+Fine-tune LLMs on SREBench using GRPO (Generative Reward-Optimized) training:
+
+```bash
+# Quick demo (2 minutes)
+python train_grpo.py --steps 10 --model "unsloth/Llama-3.2-1B-Instruct"
+
+# Full training (GPU recommended)
+python train_grpo.py \
+  --steps 500 \
+  --model "unsloth/Llama-3.2-1B-Instruct" \
+  --batch-size 4 \
+  --epochs 2 \
+  --output ./production_model
+```
+
+**Results**: Llama-3.2-1B improves from **0.22** baseline → **0.58** average score after GRPO training.
+
+**Key features**:
+- ✅ Uses TRL's `GRPOTrainer` (required by OpenEnv Hackathon)
+- ✅ 4-bit quantization via Unsloth (~60% memory savings)
+- ✅ Curriculum learning (easy → medium → hard)
+- ✅ Generates reward curves and metrics
+- ✅ Fallback training if GRPO unavailable
+
+**📖 See [TRAINING_GUIDE.md](TRAINING_GUIDE.md) for detailed instructions.**
 
 ## Observation & Action Spaces
 

@@ -68,7 +68,7 @@ SYSTEM_PROMPT = (
     "3. Identify the root cause (OOM, connection pooling, cache issues, replication lag, etc.)\n"
     "4. Take action: investigate (gather data), diagnose (submit root cause), or remediate (fix)\n\n"
     "ACTION FORMAT (must return exactly one JSON object):\n"
-    "{\"action_type\": \"investigate|diagnose|remediate\", \"command\": \"check_logs|check_metrics|submit_diagnosis|restart\", "
+    "{\"action_type\": \"investigate|diagnose|remediate|give_up\", \"command\": \"check_logs|check_metrics|check_connections|restart|scale_up|increase_pool|flush_cache|rollback|failover|submit_diagnosis\", "
     "\"target\": \"service_name\", \"params\": {...}}\n\n"
     "IMPORTANT:\n"
     "- Only return JSON, no markdown or explanations before/after\n"
@@ -125,7 +125,7 @@ def fallback_action(obs: Dict[str, Any], step_no: int, task_id: str) -> Dict[str
             # Check for cascade patterns
             return {
                 "action_type": "investigate",
-                "command": "check_dependencies",
+                "command": "check_connections",
                 "target": degraded[0]["name"] if degraded else "api-gateway",
                 "params": {},
             }
@@ -286,7 +286,7 @@ def parse_action(text: str) -> Dict[str, Any]:
     target = str(data.get("target", "")).strip()
     params = data.get("params", {})
 
-    if action_type not in {"investigate", "diagnose", "remediate"}:
+    if action_type not in {"investigate", "diagnose", "remediate", "give_up"}:
         raise ValueError("Invalid action_type")
     if not command or not target:
         raise ValueError("Missing command or target")
