@@ -1,4 +1,5 @@
 """FastAPI server for SREBench environment."""
+import random
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -16,6 +17,22 @@ from graders.expert_replica import grade_expert_replica
 from graders.universal import grade_universal
 
 app = FastAPI(title="SREBench Environment")
+
+AVAILABLE_FAULTS = [
+    "cpu_throttle",
+    "memory_leak",
+    "connection_drop",
+    "disk_io_spike",
+    "cache_fragmentation",
+]
+ALL_SERVICES = [
+    "api-gateway",
+    "user-service",
+    "payment-service",
+    "database-primary",
+    "database-replica",
+    "cache-redis",
+]
 
 # Global environment instance
 env = SREBenchEnvironment()
@@ -136,7 +153,16 @@ def reset_env(payload: Optional[Dict[str, Any]] = Body(default=None)):
             "incident_resolved": env._check_incident_resolved() if env.infrastructure else False,
         })
     
-    obs = env.reset(task_id)
+    if task_id == "random":
+        # Generate a random compound incident across 1-3 services.
+        num_affected = random.randint(1, 3)
+        targets = random.sample(ALL_SERVICES, num_affected)
+        incident_state = {}
+        for target in targets:
+            incident_state[target] = random.choice(AVAILABLE_FAULTS)
+        obs = env._apply_compound_faults(incident_state)
+    else:
+        obs = env.reset(task_id)
     return obs.dict()
 
 

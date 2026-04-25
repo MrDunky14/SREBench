@@ -6,15 +6,12 @@ A realistic OpenEnv benchmark environment for training and evaluating AI agents 
 
 SREBench simulates a production microservices system with 6 interdependent services. An agent must investigate system health dashboards, analyze logs and metrics, diagnose root causes across service dependencies, and execute remediation actions all under SLA time pressure.
 
-## Latest Verification Status
+---
 
-- Local API and edge-case audit: 9/9 passed
-- Live Space API audit: 4/5 passed
-- Standards score: 90/100
-- Full details: [../AUDIT_REPORT_2026-04-24.md](../AUDIT_REPORT_2026-04-24.md)
-- Machine-readable results: [../audit_results.json](../audit_results.json)
-
-This is not a game. This is literally what engineers at Meta, Google, Amazon, and Microsoft do on their on-call rotations. Every week. You will use the exact tools and reasoning patterns that world-class SREs employ.
+### 🏆 Key Innovations
+1. **Procedural Generation:** The `/reset` endpoint supports a `random` task that procedurally generates 50+ unique compound cascading failures.
+2. **Anti-Exploit Hardening:** GRPO training successfully teaches the model to avoid "shotgun restarts" and prioritizes logs-based investigation.
+3. **Multi-Agent Orchestration:** A custom SOTA LangGraph evaluator (`run_multi_agent_eval.py`) that uses a 70B inference endpoint to autonomously resolve Tier-1 outages.
 
 ## Why SREBench?
 

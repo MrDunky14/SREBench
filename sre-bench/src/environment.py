@@ -135,6 +135,22 @@ class SREBenchEnvironment:
         self.solution_cache = {}  # {task_id: {'steps': int, 'reward': float, 'actions': list}}
         self.resolution_step = None  # Step number when incident first resolved
         self.current_incident_config = {}
+
+    PROCEDURAL_FAULT_MAP = {
+        "cpu_throttle": "cpu_throttle",
+        "memory_leak": "slow_memory_leak",
+        "connection_drop": "connection_pool_exhaustion",
+        "disk_io_spike": "disk_pressure",
+        "cache_fragmentation": "cache_fragmentation",
+    }
+
+    PROCEDURAL_FIX_MAP = {
+        "cpu_throttle": "scale_up",
+        "memory_leak": "restart",
+        "connection_drop": "increase_pool",
+        "disk_io_spike": "increase_pool",
+        "cache_fragmentation": "flush_cache",
+    }
     
     def reset(self, task_id: str = "easy_restart") -> IncidentObservation:
         """Reset environment to initial state."""
@@ -166,6 +182,56 @@ class SREBenchEnvironment:
         
         # Generate initial observation — do NOT reveal the fault type
         self.last_action_result = f"Incident detected: Service degradation reported. Multiple alerts firing. Begin investigation."
+        return self._make_observation()
+
+    def _apply_compound_faults(self, incident_state: Dict[str, str]) -> IncidentObservation:
+        """Apply a procedurally generated compound incident map and return fresh observation."""
+        self.episode_id = str(uuid.uuid4())[:8]
+        self.task_id = "random"
+        self.step_count = 0
+        self.max_steps = 35
+        self.diagnosis_submitted = None
+        self.correct_diagnosis = False
+        self.cumulative_reward = 0.0
+        self.actions_taken = []
+        self.sla_remaining_minutes = 30.0
+        self.investigated_targets = set()
+        self.restart_targets = set()
+        self.failed_remediations = 0
+        self.shotgun_penalty_applied = False
+        self.resolution_step = None
+
+        configurations = []
+        normalized_faults = []
+        normalized_fixes = []
+        normalized_roots = []
+
+        for service_name, procedural_fault in incident_state.items():
+            fault_type = self.PROCEDURAL_FAULT_MAP.get(procedural_fault, "cpu_throttle")
+            configurations.append({
+                "root_cause_service": service_name,
+                "fault_type": fault_type,
+                "ground_truth_fix": self.PROCEDURAL_FIX_MAP.get(procedural_fault, "restart"),
+            })
+            normalized_faults.append(fault_type)
+            normalized_fixes.append(self.PROCEDURAL_FIX_MAP.get(procedural_fault, "restart"))
+            normalized_roots.append(service_name)
+
+        self.current_incident_config = {
+            "is_compound": True,
+            "configurations": configurations,
+            "root_cause_service": normalized_roots,
+            "fault_type": normalized_faults,
+            "ground_truth_diagnosis": normalized_faults,
+            "ground_truth_fix": normalized_fixes,
+            "description": "Procedurally generated compound incident",
+            "max_steps": 35,
+        }
+
+        self.infrastructure = Infrastructure(seed=hash(self.episode_id) % (2**31))
+        self.infrastructure.inject_incident(self.current_incident_config)
+        self.max_steps = self.current_incident_config.get("max_steps", 35)
+        self.last_action_result = "Incident detected: Procedural compound faults injected. Begin investigation."
         return self._make_observation()
 
     def _get_random_task(self) -> Tuple[Dict, str]:

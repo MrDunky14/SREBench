@@ -221,6 +221,16 @@ SREBench is designed as a research contribution. If you build on it, please cite
 5. **Efficiency gains matter**: Using Unsloth reduces memory footprint by ~60% and training time by ~40%.
 
 ---
+## The Enterprise SOTA: 70B Multi-Agent Orchestration
+
+While an 8B model proves the environment is mathematically learnable, enterprise infrastructure requires complex orchestration. To push the frontier of OpenEnv, we deployed a **Multi-Agent LangGraph Architecture** using a 70B parameter inference endpoint.
+
+Instead of a single agent holding the entire context window, SREBench handles:
+1. 🕵️ **The Investigator Agent**: Authorized only to pull logs and read metrics. Avoids action-loops via a shared scratchpad memory.
+2. 🧠 **The Diagnoser Agent**: Reads the telemetry history and zero-shot identifies the root cause (e.g., "Connection Pool Exhausted").
+3. 🛠️ **The Operator Agent**: Maps the diagnosis to a strict OpenEnv remediation command.
+
+Because we trained our models on the `random` procedural incident generator, the agents achieve true zero-shot generalization across all standard benchmark tasks.
 
 ## Try It Now
 
