@@ -153,20 +153,38 @@ class Infrastructure:
             )
     
     def inject_incident(self, incident_config: dict):
-        """Inject root cause and propagate failures."""
+        """Inject one or more root-cause faults and propagate failures."""
         self.incident_config = incident_config
-        root = incident_config["root_cause_service"]
-        fault_type = incident_config["fault_type"]
-        
-        # Apply fault to root cause service
-        self._apply_fault(root, fault_type)
-        self.affected_services.add(root)
-        
-        # Propagate through dependencies
-        self._propagate_failures(root)
+        configurations = incident_config.get("configurations")
+        is_compound = incident_config.get("is_compound", False)
+
+        if configurations or is_compound:
+            if not configurations:
+                root = incident_config["root_cause_service"]
+                fault_type = incident_config["fault_type"]
+                configurations = [{"root_cause_service": root, "fault_type": fault_type}]
+            self.inject_compound_incident(configurations)
+        else:
+            root = incident_config["root_cause_service"]
+            fault_type = incident_config["fault_type"]
+            self._apply_fault(root, fault_type)
+            self.affected_services.add(root)
+            self._propagate_failures(root)
 
         # Add a mild decoy signal to one healthy service so agents must correlate evidence.
         self._inject_decoy_anomaly()
+
+    def inject_compound_incident(self, configurations: list):
+        """Inject a compound incident across multiple service/fault pairs."""
+        for config in configurations:
+            root = config["root_cause_service"]
+            fault_type = config["fault_type"]
+            self._apply_fault(root, fault_type)
+            self.affected_services.add(root)
+
+        # Propagate after all root causes are marked, so root services are not overwritten.
+        for config in configurations:
+            self._propagate_failures(config["root_cause_service"])
 
     def _inject_decoy_anomaly(self):
         """Apply a subtle non-failing anomaly to a healthy service."""
@@ -215,7 +233,7 @@ class Infrastructure:
             svc.memory_percent = self._jitter(43.0, 0.12, floor=30.0, ceiling=58.0)
             svc.error_rate_percent = self._jitter(1.5, 0.50, floor=0.0, ceiling=5.0)
             svc.latency_p99_ms = self._jitter(2.0, 0.30, floor=0.5, ceiling=6.0)
-            svc.metrics_history = {"cache_hit_ratio": self.rng.randint(62, 78)}
+            self._update_service_metric(service_name, "cache_hit_ratio", self.rng.randint(62, 78))
             self._gen_logs(service_name, fault_type)
         
         elif fault_type == "network_partition":
@@ -224,7 +242,7 @@ class Infrastructure:
             svc.latency_p99_ms = self._jitter(3200.0, 0.15, floor=2000.0, ceiling=5500.0)
             svc.cpu_percent = self._jitter(45.0, 0.12, floor=28.0, ceiling=65.0)
             svc.memory_percent = self._jitter(78.0, 0.08, floor=65.0, ceiling=90.0)
-            svc.metrics_history = {"replication_lag_ms": self.rng.randint(3000, 8000)}
+            self._update_service_metric(service_name, "replication_lag_ms", self.rng.randint(3000, 8000))
             self._gen_logs(service_name, fault_type)
         
         elif fault_type == "database_replica_sync_failure":
@@ -233,7 +251,7 @@ class Infrastructure:
             svc.latency_p99_ms = self._jitter(2100.0, 0.12, floor=1200.0, ceiling=3500.0)
             svc.cpu_percent = self._jitter(55.0, 0.10, floor=38.0, ceiling=72.0)
             svc.memory_percent = self._jitter(82.0, 0.06, floor=72.0, ceiling=92.0)
-            svc.metrics_history = {"replication_lag_seconds": self.rng.randint(20, 90)}
+            self._update_service_metric(service_name, "replication_lag_seconds", self.rng.randint(20, 90))
             self._gen_logs(service_name, fault_type)
 
         elif fault_type == "cpu_throttle":
@@ -242,7 +260,7 @@ class Infrastructure:
             svc.memory_percent = self._jitter(55.0, 0.10, floor=40.0, ceiling=70.0)
             svc.error_rate_percent = self._jitter(40.0, 0.15, floor=20.0, ceiling=60.0)
             svc.latency_p99_ms = self._jitter(3800.0, 0.12, floor=2500.0, ceiling=5500.0)
-            svc.metrics_history = {"cpu_throttle_pct": self.rng.randint(60, 90)}
+            self._update_service_metric(service_name, "cpu_throttle_pct", self.rng.randint(60, 90))
             self._gen_logs(service_name, fault_type)
 
         elif fault_type == "slow_memory_leak":
@@ -252,7 +270,7 @@ class Infrastructure:
             svc.memory_percent = self._jitter(82.0, 0.06, floor=75.0, ceiling=92.0)
             svc.error_rate_percent = self._jitter(3.0, 0.40, floor=0.5, ceiling=8.0)
             svc.latency_p99_ms = self._jitter(350.0, 0.15, floor=200.0, ceiling=600.0)
-            svc.metrics_history = {"heap_growth_mb_per_hour": self.rng.randint(50, 200)}
+            self._update_service_metric(service_name, "heap_growth_mb_per_hour", self.rng.randint(50, 200))
             self._gen_logs(service_name, fault_type)
 
         elif fault_type == "disk_pressure":
@@ -261,7 +279,7 @@ class Infrastructure:
             svc.memory_percent = self._jitter(70.0, 0.08, floor=55.0, ceiling=85.0)
             svc.error_rate_percent = self._jitter(55.0, 0.12, floor=35.0, ceiling=75.0)
             svc.latency_p99_ms = self._jitter(4200.0, 0.10, floor=3000.0, ceiling=6000.0)
-            svc.metrics_history = {"disk_usage_pct": self.rng.randint(92, 99)}
+            self._update_service_metric(service_name, "disk_usage_pct", self.rng.randint(92, 99))
             self._gen_logs(service_name, fault_type)
 
         elif fault_type == "dns_resolution_failure":
@@ -278,7 +296,7 @@ class Infrastructure:
             svc.memory_percent = self._jitter(68.0, 0.08, floor=55.0, ceiling=82.0)
             svc.error_rate_percent = self._jitter(50.0, 0.12, floor=30.0, ceiling=70.0)
             svc.latency_p99_ms = self._jitter(6000.0, 0.10, floor=4000.0, ceiling=9000.0)
-            svc.metrics_history = {"deadlock_count": self.rng.randint(5, 25)}
+            self._update_service_metric(service_name, "deadlock_count", self.rng.randint(5, 25))
             self._gen_logs(service_name, fault_type)
 
         elif fault_type == "tls_cert_expired":
@@ -287,7 +305,7 @@ class Infrastructure:
             svc.memory_percent = self._jitter(35.0, 0.12, floor=20.0, ceiling=50.0)
             svc.error_rate_percent = self._jitter(90.0, 0.05, floor=80.0, ceiling=100.0)
             svc.latency_p99_ms = self._jitter(100.0, 0.30, floor=20.0, ceiling=300.0)
-            svc.metrics_history = {"cert_days_expired": self.rng.randint(1, 30)}
+            self._update_service_metric(service_name, "cert_days_expired", self.rng.randint(1, 30))
             self._gen_logs(service_name, fault_type)
 
         elif fault_type == "config_drift":
@@ -297,6 +315,11 @@ class Infrastructure:
             svc.error_rate_percent = self._jitter(35.0, 0.18, floor=15.0, ceiling=55.0)
             svc.latency_p99_ms = self._jitter(1800.0, 0.15, floor=1000.0, ceiling=3000.0)
             self._gen_logs(service_name, fault_type)
+
+    def _update_service_metric(self, service_name: str, metric_name: str, metric_value):
+        """Merge fault-specific metric into service history without wiping prior signals."""
+        svc = self.services[service_name]
+        svc.metrics_history[metric_name] = metric_value
     
     def _propagate_failures(self, failed_service: str):
         """Services depending on failed service become degraded with noise."""

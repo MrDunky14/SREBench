@@ -24,27 +24,47 @@ def grade_universal(env) -> float:
     final_state = env.state()
     score = 0.0
 
-    incident = INCIDENTS.get(env.task_id, {})
+    incident = getattr(env, "current_incident_config", None) or INCIDENTS.get(env.task_id, {})
     ground_truth = incident.get("ground_truth_diagnosis", "")
+    if isinstance(ground_truth, list):
+        expected_diagnoses = [tag.lower() for tag in ground_truth if tag]
+    elif ground_truth:
+        expected_diagnoses = [ground_truth.lower()]
+    else:
+        expected_diagnoses = []
 
     # 1. Diagnosis accuracy (0.30)
     submitted = final_state.diagnosis_submitted
-    if submitted and ground_truth:
-        if submitted.lower() == ground_truth.lower():
-            score += 0.30
+    if submitted and expected_diagnoses:
+        submitted_lower = submitted.lower()
+        if len(expected_diagnoses) == 1:
+            if submitted_lower == expected_diagnoses[0]:
+                score += 0.30
+            else:
+                # Partial credit for mentioning key terms
+                gt_tokens = set(expected_diagnoses[0].replace("_", " ").split())
+                sub_tokens = set(submitted_lower.replace("_", " ").split())
+                overlap = gt_tokens & sub_tokens
+                if len(overlap) >= 1:
+                    score += 0.10
         else:
-            # Partial credit for mentioning key terms
-            gt_tokens = set(ground_truth.lower().replace("_", " ").split())
-            sub_tokens = set(submitted.lower().replace("_", " ").split())
-            overlap = gt_tokens & sub_tokens
-            if len(overlap) >= 1:
-                score += 0.10
+            matched = sum(1 for tag in expected_diagnoses if tag in submitted_lower)
+            if matched == len(expected_diagnoses):
+                score += 0.30
+            elif matched >= 1:
+                score += 0.15
 
     # 2. System recovery (0.30)
     all_healthy = all(s.status == "healthy" for s in final_state.services)
     root_svc = incident.get("root_cause_service", "")
+    if isinstance(root_svc, list):
+        root_services = set(root_svc)
+    elif root_svc:
+        root_services = {root_svc}
+    else:
+        root_services = set()
     root_recovered = any(
-        s.name == root_svc and s.status == "healthy" for s in final_state.services
+        s.name in root_services and s.status == "healthy" for s in final_state.services
     )
 
     if all_healthy:
@@ -62,7 +82,7 @@ def grade_universal(env) -> float:
     # 4. No collateral damage (0.10)
     unnecessary_restarts = sum(
         1 for action in final_state.actions_taken
-        if "restart" in action and root_svc not in action
+        if "restart" in action and not any(root in action for root in root_services)
     )
     if unnecessary_restarts == 0:
         score += 0.10

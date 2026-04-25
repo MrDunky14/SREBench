@@ -1,6 +1,7 @@
 """Main SREBench environment."""
+import random
 import uuid
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List, Set
 from .models import (
     IncidentAction, IncidentObservation, IncidentReward, 
     IncidentState, ServiceStatus
@@ -133,6 +134,7 @@ class SREBenchEnvironment:
         # Solution caching for reproducibility
         self.solution_cache = {}  # {task_id: {'steps': int, 'reward': float, 'actions': list}}
         self.resolution_step = None  # Step number when incident first resolved
+        self.current_incident_config = {}
     
     def reset(self, task_id: str = "easy_restart") -> IncidentObservation:
         """Reset environment to initial state."""
@@ -150,15 +152,14 @@ class SREBenchEnvironment:
         self.failed_remediations = 0
         self.shotgun_penalty_applied = False
         
-        # Create new infrastructure and inject incident
-        # Support procedural "random" task — pick a random incident each episode
-        import random as _rng
+        # Create new infrastructure and inject incident.
         if task_id == "random":
-            real_task = _rng.choice([k for k in INCIDENTS.keys()])
-            self.task_id = real_task
-            incident_config = INCIDENTS[real_task]
+            incident_config, resolved_task_id = self._get_random_task()
+            self.task_id = resolved_task_id
         else:
             incident_config = INCIDENTS.get(task_id, INCIDENTS["easy_restart"])
+            self.task_id = task_id if task_id in INCIDENTS else "easy_restart"
+        self.current_incident_config = incident_config
         self.infrastructure = Infrastructure(seed=hash(self.episode_id) % (2**31))
         self.infrastructure.inject_incident(incident_config)
         self.max_steps = incident_config.get("max_steps", 30)
@@ -166,6 +167,72 @@ class SREBenchEnvironment:
         # Generate initial observation — do NOT reveal the fault type
         self.last_action_result = f"Incident detected: Service degradation reported. Multiple alerts firing. Begin investigation."
         return self._make_observation()
+
+    def _get_random_task(self) -> Tuple[Dict, str]:
+        """Generate a random task; occasionally emit a 2-root-cause compound scenario."""
+        if random.random() < 0.30:
+            task_a, task_b = random.sample(list(INCIDENTS.items()), 2)
+            task_id_a, cfg_a = task_a
+            task_id_b, cfg_b = task_b
+
+            # Prefer distinct services/faults to increase diversity and avoid duplicate roots.
+            attempts = 0
+            while attempts < 8 and (
+                cfg_a["root_cause_service"] == cfg_b["root_cause_service"]
+                or cfg_a["fault_type"] == cfg_b["fault_type"]
+            ):
+                task_id_b, cfg_b = random.choice(list(INCIDENTS.items()))
+                attempts += 1
+
+            compound_config = {
+                "is_compound": True,
+                "configurations": [
+                    {
+                        "root_cause_service": cfg_a["root_cause_service"],
+                        "fault_type": cfg_a["fault_type"],
+                        "ground_truth_fix": cfg_a["ground_truth_fix"],
+                    },
+                    {
+                        "root_cause_service": cfg_b["root_cause_service"],
+                        "fault_type": cfg_b["fault_type"],
+                        "ground_truth_fix": cfg_b["ground_truth_fix"],
+                    },
+                ],
+                "root_cause_service": [cfg_a["root_cause_service"], cfg_b["root_cause_service"]],
+                "fault_type": [cfg_a["fault_type"], cfg_b["fault_type"]],
+                "ground_truth_diagnosis": [cfg_a["ground_truth_diagnosis"], cfg_b["ground_truth_diagnosis"]],
+                "ground_truth_fix": [cfg_a["ground_truth_fix"], cfg_b["ground_truth_fix"]],
+                "description": f"Compound incident: {cfg_a['description']} + {cfg_b['description']}",
+                "max_steps": max(cfg_a.get("max_steps", 30), cfg_b.get("max_steps", 30)) + 5,
+            }
+            return compound_config, f"random_compound::{task_id_a}+{task_id_b}"
+
+        single_task_id = random.choice(list(INCIDENTS.keys()))
+        return INCIDENTS[single_task_id], single_task_id
+
+    def _get_active_incident_config(self) -> Dict:
+        """Get current incident config, including procedurally generated compound tasks."""
+        if self.current_incident_config:
+            return self.current_incident_config
+        return INCIDENTS.get(self.task_id, {})
+
+    def _parse_diagnosis_tags(self, diagnosis: str) -> Set[str]:
+        """Normalize diagnosis text into comparable tags."""
+        if not diagnosis:
+            return set()
+        normalized = diagnosis.lower()
+        for delimiter in [",", ";", "|", "+", "/", "\n", "\t"]:
+            normalized = normalized.replace(delimiter, " ")
+        return {token.strip() for token in normalized.split() if token.strip()}
+
+    def _normalize_ground_truth_diagnosis(self, incident_config: Dict) -> List[str]:
+        """Return one or many expected diagnosis labels."""
+        ground_truth = incident_config.get("ground_truth_diagnosis", "")
+        if isinstance(ground_truth, list):
+            return [gt.lower() for gt in ground_truth if gt]
+        if isinstance(ground_truth, str) and ground_truth:
+            return [ground_truth.lower()]
+        return []
     
     def step(self, action: IncidentAction) -> Tuple[IncidentObservation, IncidentReward, bool, Dict]:
         """Take one step in the environment."""
@@ -286,14 +353,25 @@ class SREBenchEnvironment:
                 self.diagnosis_submitted = action.params.get("root_cause", "")
             else:
                 self.diagnosis_submitted = action.params.get("root_cause", "")
-                incident_config = INCIDENTS.get(self.task_id, {})
-                ground_truth = incident_config.get("ground_truth_diagnosis", "")
-                
-                if self.diagnosis_submitted.lower() == ground_truth.lower():
-                    diagnosis_reward = 0.25
-                    self.correct_diagnosis = True
+                incident_config = self._get_active_incident_config()
+                expected_diagnoses = self._normalize_ground_truth_diagnosis(incident_config)
+                submitted_lower = self.diagnosis_submitted.lower()
+
+                if len(expected_diagnoses) == 1:
+                    if submitted_lower == expected_diagnoses[0]:
+                        diagnosis_reward = 0.25
+                        self.correct_diagnosis = True
+                    else:
+                        diagnosis_reward = -0.10
                 else:
-                    diagnosis_reward = -0.10
+                    matched = sum(1 for tag in expected_diagnoses if tag in submitted_lower)
+                    if matched == len(expected_diagnoses):
+                        diagnosis_reward = 0.25
+                        self.correct_diagnosis = True
+                    elif matched >= 1:
+                        diagnosis_reward = 0.10
+                    else:
+                        diagnosis_reward = -0.10
         breakdown["diagnosis"] = diagnosis_reward
         reward += diagnosis_reward
         
@@ -319,8 +397,13 @@ class SREBenchEnvironment:
         # Penalize risky remediation patterns that game the environment.
         safety_penalty = 0.0
         # Penalty for remediating services that are NOT the root cause
-        root_cause = INCIDENTS.get(self.task_id, {}).get("root_cause_service", "")
-        if action.action_type == "remediate" and action.target != root_cause:
+        incident_config = self._get_active_incident_config()
+        root_cause = incident_config.get("root_cause_service", "")
+        if isinstance(root_cause, list):
+            allowed_roots = set(root_cause)
+        else:
+            allowed_roots = {root_cause} if root_cause else set()
+        if action.action_type == "remediate" and allowed_roots and action.target not in allowed_roots:
             safety_penalty -= 0.15  # Non-root-cause remediation penalty
 
         if action.command == "restart":
