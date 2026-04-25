@@ -19,7 +19,7 @@ You must diagnose and remediate microservice outages across a realistic 6-servic
 | Resource | Link |
 |---|---|
 | **🚀 Hugging Face Space** | [https://huggingface.co/spaces/CreatorNeuron/sre-bench](https://huggingface.co/spaces/CreatorNeuron/sre-bench) |
-| **📓 Colab Notebook** | [https://colab.research.google.com/drive/[YOUR_COLAB_ID_HERE]](https://colab.research.google.com/drive/[YOUR_COLAB_ID_HERE]) *(Note: Used Kaggle T4 for 30h quota)* |
+| **📓 Colab Notebook** | [https://colab.research.google.com/drive/1dUMKWEun9nkDClP7F0dhuVfHJqPMKcDC#scrollTo=oHCFBmV_hZSg](https://colab.research.google.com/drive/1dUMKWEun9nkDClP7F0dhuVfHJqPMKcDC#scrollTo=oHCFBmV_hZSg) |
 | **💻 Code Repository** | [https://github.com/MrDunky14/SREBench](https://github.com/MrDunky14/SREBench) |
 | **📝 HF Blog Post** | [SREBench: Teaching LLMs to Fix Production Incidents](BLOG_POST.md) |
 
