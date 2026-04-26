@@ -1,3 +1,11 @@
+---
+title: SREBench
+description: Production incident response benchmark for SRE agents using OpenEnv
+sdk: docker
+colorFrom: blue
+colorTo: red
+---
+
 # 🚨 SREBench: Production SRE Incident Response Benchmark
 
 **A realistic OpenEnv benchmark environment for training and evaluating AI agents on production incident response.**
