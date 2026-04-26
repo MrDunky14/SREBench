@@ -61,6 +61,34 @@ Each service tracks:
 - Log buffer (realistic entries based on fault type)
 - Metrics history (cache hit ratios, connection counts, etc.)
 
+## ⚖️ How to Evaluate (OpenEnv Compliant)
+
+SREBench provides two proven evaluation methodologies:
+
+**Option A: The Standard Baseline (Single Agent)**
+
+Use the standard OpenEnv `inference.py` script to test with any OpenAI-compatible model.
+
+```bash
+export ENV_URL="https://creatorneuron-sre-bench.hf.space"
+python inference.py
+```
+
+**Option B: The SREBench Multi-Agent SOTA (Recommended)**
+
+For optimal incident resolution, use our LangGraph-based multi-agent orchestrator that specializes three agents:
+- **Investigator**: Selects which services to diagnose
+- **Diagnoser**: Analyzes logs and identifies root causes
+- **Operator**: Executes remediation actions
+
+```bash
+python run_multi_agent_eval.py --api_url [YOUR_ENDPOINT] --model [MODEL_NAME]
+```
+
+Both methods are OpenEnv-compliant and provide reproducible evaluation across the 12 incident scenarios plus random generative mode.
+
+---
+
 ## Tasks
 
 The live environment currently exposes **12 core incident scenarios** across 4 difficulty tiers, plus **1 procedural `random` scenario** for generative training.

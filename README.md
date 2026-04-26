@@ -18,24 +18,36 @@ You must diagnose and remediate microservice outages across a realistic 6-servic
 
 | Resource | Link |
 |---|---|
-| **🚀 Hugging Face Space** | [https://huggingface.co/spaces/CreatorNeuron/sre-bench](https://huggingface.co/spaces/CreatorNeuron/sre-bench) |
-| **📓 Colab Notebook** | [https://colab.research.google.com/drive/1dUMKWEun9nkDClP7F0dhuVfHJqPMKcDC#scrollTo=oHCFBmV_hZSg](https://colab.research.google.com/drive/1dUMKWEun9nkDClP7F0dhuVfHJqPMKcDC#scrollTo=oHCFBmV_hZSg) |
+| **🚀 Hugging Face Space** | [SREBench](https://huggingface.co/spaces/CreatorNeuron/sre-bench) |
+| **📓 Colab Notebook** | [Trained with Meta-Llama-3.1-8B-Instruct-bnb-4bit](https://colab.research.google.com/drive/1dUMKWEun9nkDClP7F0dhuVfHJqPMKcDC#scrollTo=oHCFBmV_hZSg) |
 | **💻 Code Repository** | [https://github.com/MrDunky14/SREBench](https://github.com/MrDunky14/SREBench) |
-| **📝 HF Blog Post** | [SREBench: Teaching LLMs to Fix Production Incidents](BLOG_POST.md) |
-
----
-
-## 🎯 Quick Links
-
-| | Link |
-|---|---|
-| **🌐 Live Space** | https://huggingface.co/spaces/CreatorNeuron/sre-bench |
+| **📝 HF Blog Post** | [SREBench: Teaching LLMs to Fix Production Incidents](https://huggingface.co/spaces/CreatorNeuron/sre-bench/blob/main/BLOG_POST.md) |
 | **📖 Full Docs** | [sre-bench/README.md](sre-bench/README.md) |
 | **⚙️ API Docs** | https://creatorneuron-sre-bench.hf.space/docs |
-| **💻 GitHub Repo** | https://github.com/MrDunky14/SREBench |
-| **📜 Blog Post** | [SREBench: Teaching LLMs to Fix Production Incidents](BLOG_POST.md) |
-| **🧪 Latest Audit** | [Audit Report (2026-04-24)](AUDIT_REPORT_2026-04-24.md) |
-| **📋 Audit JSON** | [audit_results.json](audit_results.json) |
+---
+
+## ⚖️ How to Evaluate (OpenEnv Compliant)
+
+This project features a fully OpenEnv-compliant backend (FastAPI) exposing standard `/reset` and `/step` endpoints. We provide two ways to evaluate the agent:
+
+**Option A: The Standard Baseline (Single Agent)**
+
+You can use the standard OpenEnv `inference.py` script to test the environment using any OpenAI-compatible BYOM (Bring Your Own Model).
+
+```bash
+export ENV_URL="https://creatorneuron-sre-bench.hf.space"
+python inference.py
+```
+
+**Option B: The SREBench Multi-Agent SOTA (Recommended)**
+
+To evaluate our primary innovation, run our custom LangGraph orchestrator. This splits the reasoning into three specialized OpenEnv agents (Investigator, Diagnoser, Operator) to eliminate reward-hacking loops.
+
+```bash
+python run_multi_agent_eval.py --api_url [YOUR_ENDPOINT] --model [MODEL_NAME]
+```
+
+Both methods are fully compatible with the OpenEnv specification and provide rich, reproducible evaluation metrics.
 
 ---
 
@@ -50,20 +62,27 @@ We've released `train_grpo.py`—a complete training pipeline for fine-tuning LL
 - **Curriculum learning** across 12 distinct fault scenarios (easy → medium → hard → expert) + 1 procedural random task for infinite generative training.
 
 **Quick Start:**
-We provide a complete Jupyter Notebook (`SREBench_Training.ipynb`) that handles environment connection, GRPO setup, and training visualization.
-Simply upload it to Kaggle or Lightning AI (L4 GPU recommended) and run all cells!
+We provide a complete Jupyter Notebook (`SREBench_Training.ipynb`) that handles environment connection, GRPO setup, and training visualization and run all cells!
 
-**Results**: Final evaluation complete. GRPO training executed on L4 GPU (24GB VRAM) using Llama 3.1 8B.
+**Results**: Final evaluation complete. GRPO training executed on T4 GPU (16GB VRAM) using Meta-Llama-3.1-8B-Instruct-bnb-4bit.
+
+
+### 📊 Training Evidence
+The success of this alignment is evidenced by the convergence of our reward and loss curves over 100 training steps.
+
+![GRPO Training Reward Curve](output/training_curves_8B.png)
+
+*The model shows a clear transition from randomized "shotgun" behavior to a structured, investigation-first diagnostic pipeline.*
+
+![Baseline Comparison](output/learning_curve_8B.png)
 
 | Agent | Easy (Restart) | Medium (Cascade) | Hard (Intermittent) |
 |-------|---------------|-----------------|-------------------|
-| Random | ~-0.92 | ~-0.66 | ~-0.44 |
-| Heuristic | ~-0.19 | ~-0.19 | ~-0.19 |
-| **GRPO Trained (8B)** | **+0.85** | **+0.62** | **+0.74** |
+| Random | ~ -0.87 | ~ -0.68 | ~ -0.92 |
+| Heuristic | ~ -0.19 | ~ -0.19 | ~ -0.19 |
+| **GRPO Trained (8B)** | **+0.27** | **+0.26** | **+0.26** |
 
-![Learning Curve Impact: Random vs Heuristic vs GRPO agent rewards across tasks](learning_curve.png)
-
-📖 **Full details**: [Read the blog post →](BLOG_POST.md)
+---
 
 ---
 
@@ -108,28 +127,30 @@ Simply upload it to Kaggle or Lightning AI (L4 GPU recommended) and run all cell
 
 ---
 
-## 🏛️ Architecture
+# 🏗️ SREBench: Technical Architecture & Design
 
-**6-service microservices system with realistic dependency graph:**
+SREBench is a high-fidelity environment designed for training and evaluating autonomous SRE agents. It moves beyond simple "if-then" logic to a stochastic world model where agents must perform causal reasoning across a distributed system.
 
-```
-                    ┌─────────────────┐
-                    │   api-gateway   │
-                    └────────┬────────┘
-                             │
-              ┌──────────────┼──────────────┐
-              │              │              │
-        ┌─────▼────┐   ┌─────▼────┐   ┌───▼──────┐
-        │user-svc  │   │payment-svc   │db-primary│
-        └─────┬────┘   └─────┬────┘   └───┬──────┘
-              │              │              │
-              └──────────────┼──────────────┘
-                             │
-              ┌──────────────┼──────────────┐
-              │              │              │
-        ┌─────▼────────┐  ┌──▼─────┐  ┌───▼──────┐
-        │  cache-redis │  │db-replica   │ (mirrors)
-        └──────────────┘  └──────────┘  └──────────┘
+---
+
+## 1. Environment Architecture (Theme #3.1: World Modeling)
+
+The core of SREBench is a **6-service microservice dependency graph** built on a stochastic telemetry engine.
+
+### 🕸️ System Topology
+SREBench emulates a realistic production stack where failures in downstream components propagate upstream as ambiguous symptoms.
+
+```mermaid
+graph TD
+    GW[api-gateway] --> US[user-service]
+    GW --> PS[payment-service]
+    US --> DB1[database-primary]
+    PS --> DB1
+    PS --> RD[cache-redis]
+    DB1 -.-> DB2[database-replica]
+    
+    style DB1 fill:#f96,stroke:#333
+    style RD fill:#f96,stroke:#333
 ```
 
 Each service emulates:
@@ -137,7 +158,42 @@ Each service emulates:
 - Service-specific logs based on fault type
 - Metrics (cache hit ratio, connection pool usage, etc.)
 
+
 ---
+## 2. Multi-Agent Orchestration (Theme #1)
+
+To solve compound production outages, SREBench utilizes a specialized **LangGraph-powered Multi-Agent Team**. Instead of a single model attempting to manage the entire state, our architecture splits the cognitive load into three distinct, specialized agents that collaborate via a shared state machine.
+
+### 🔄 The Agentic Collaboration Loop
+Our orchestration ensures that investigation always precedes remediation, effectively eliminating the "Shotgun SRE" behavior common in single-agent loops.
+
+```mermaid
+graph TD
+    A[Incident Triggered] --> B[Investigator Agent]
+    B --> C[Diagnoser Agent]
+    C -- Insufficient Data --> B
+    C -- Root Cause Identified --> D[Operator Agent]
+    D -- System Degraded --> B
+    D -- Recovery Confirmed --> E[SLA Saved]
+```
+## 3. Alignment via GRPO RL (A100 Verified)
+
+To transform a generic language model into a decisive SRE, we utilized **Generative Reward-Optimized (GRPO)** training via the Unsloth and TRL frameworks. This alignment phase is critical for moving beyond simple prompt engineering to true causal reasoning.
+
+### 🛠️ Training Configuration
+- **Model:** Llama 3.1 8B Instruct (bnb-4bit)
+- **Hardware:** NVIDIA T4 GPU
+- **Optimization:** QLoRA (r=16, alpha=32) for memory-efficient training
+- **Frameworks:** Unsloth for 2x faster finetuning and TRL for GRPO orchestration
+
+### ⚖️ Anti-Exploit Reward Logic
+A core innovation of SREBench is the defeat of **"Reward Hacking"**—the tendency for agents to blindly restart servers to clear alerts. We enforce professional engineering behavior through a 3-part reward system:
+
+| Reward Signal | Value | Purpose |
+| :--- | :--- | :--- |
+| **Format Reward** | +0.20 | Ensures the agent strictly outputs valid, parsable JSON. |
+| **Investigation Reward** | +0.15 | Incentivizes the use of `check_logs` or `check_metrics` before taking action. |
+| **No-Shotgun Penalty** | -0.20 | Heavily penalizes any `remediate` action taken without prior log evidence. |
 
 ## 📡 API Endpoints (11 total)
 
@@ -311,3 +367,10 @@ For architectural details, reward function specifics, observation/action space s
 **Live Environment**: https://huggingface.co/spaces/CreatorNeuron/sre-bench  
 **GitHub Repository**: https://github.com/MrDunky14/SREBench  
 **Grand Finale**: April 25-26, 2026 (Bangalore)
+
+---
+**👤 The Solo Story: Full-Stack Agent Engineering**
+
+**SREBench** is a solo project developed by Krishna Singh. Managing the entire lifecycle—from engineering the stochastic 6-service world model to implementing the GRPO RL alignment pipeline and orchestrating the LangGraph multi-agent team—this project demonstrates the technical depth required to build production-grade autonomous reliability systems single-handedly.
+
+---

@@ -306,6 +306,43 @@ curl -s -X POST http://localhost:8000/baseline \
 
 Expected: Both runs return identical `steps` and `score`
 
+### Step 10: Test Both Evaluation Methods
+
+#### Option A: Single-Agent Evaluation
+
+From the root SREBench directory, test the standard OpenEnv inference interface:
+
+```bash
+# Make sure server is still running on localhost:8000
+export ENV_URL="http://localhost:8000"
+python inference.py --max-steps 20
+```
+
+Expected:
+- Agent connects successfully
+- Completes at least the easy_restart task
+- Outputs final score (should be positive)
+
+#### Option B: Multi-Agent Evaluation (Recommended)
+
+Test the LangGraph-based multi-agent orchestrator:
+
+```bash
+# From root SREBench directory
+python run_multi_agent_eval.py \
+  --api_url "http://localhost:8000" \
+  --model "gpt-3.5-turbo" \
+  --num_episodes 3
+```
+
+Expected:
+- Multi-agent team initializes (Investigator, Diagnoser, Operator agents)
+- Completes 3 episodes
+- Outputs average reward across episodes
+- Shows role-based reasoning pattern
+
+**Note**: Multi-agent evaluation requires OpenAI API key or compatible LLM endpoint. For quick validation without external APIs, test Option A first.
+
 ---
 
 ## Verification Checklist
