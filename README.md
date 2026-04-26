@@ -1,11 +1,3 @@
----
-title: SREBench
-description: Production incident response benchmark for SRE agents using OpenEnv
-sdk: docker
-colorFrom: blue
-colorTo: red
----
-
 # 🚨 SREBench: Production SRE Incident Response Benchmark
 
 **A realistic OpenEnv benchmark environment for training and evaluating AI agents on production incident response.**
@@ -13,7 +5,11 @@ colorTo: red
 You must diagnose and remediate microservice outages across a realistic 6-service architecture, navigating **12 unique production incident scenarios** and a generative 'random' task, using the exact tools and reasoning patterns that on-call SREs at Meta, Google, Amazon, and Microsoft employ every day.
 
 ---
+## The Problem (3 AM PagerDuty Call)
 
+Every night, someone's phone rings. A production incident. Database connection pool exhausted. Cache fragmented. Network partition. Services cascading down.
+
+The response? A human SRE on call, manually digging through logs, correlating metrics across 6 microservices, trying to find the root cause before the SLA burns out.
 ## 🏆 Hackathon Submission Links (Mandatory)
 
 | Resource | Link |
@@ -371,6 +367,6 @@ For architectural details, reward function specifics, observation/action space s
 ---
 **👤 The Solo Story: Full-Stack Agent Engineering**
 
-**SREBench** is a solo project developed by Krishna Singh. Managing the entire lifecycle—from engineering the stochastic 6-service world model to implementing the GRPO RL alignment pipeline and orchestrating the LangGraph multi-agent team—this project demonstrates the technical depth required to build production-grade autonomous reliability systems single-handedly.
+>**SREBench** is a solo project developed by Krishna Singh. Managing the entire lifecycle—from engineering the stochastic 6-service world model to implementing the GRPO RL alignment pipeline and orchestrating the LangGraph multi-agent team—this project demonstrates the technical depth required to build production-grade autonomous reliability systems single-handedly.
 
 ---
