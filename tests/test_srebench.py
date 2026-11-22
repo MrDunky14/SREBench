@@ -309,3 +309,28 @@ def test_fastapi_endpoints(api_client):
     # Action space
     r = api_client.get("/action_space")
     assert r.status_code == 200
+
+
+def test_gymnasium_rollout():
+    """Verify Gymnasium wrapper environment rollout."""
+    sys.path.insert(0, str(sre_bench_dir))
+    from gymnasium_env import SREBenchGymEnv
+
+    env = SREBenchGymEnv(task_id="easy_restart")
+    obs, info = env.reset()
+    assert obs.shape == (32,)
+    assert isinstance(info, dict)
+
+    # Execute a step using action space sample
+    action = env.action_space.sample()
+    next_obs, reward, terminated, truncated, step_info = env.step(action)
+    assert next_obs.shape == (32,)
+    assert isinstance(reward, float)
+    assert isinstance(terminated, bool)
+    assert isinstance(truncated, bool)
+
+    # Test diagnosis action encoding
+    # action 4 corresponds to submit_diagnosis
+    action_obj = env._action_to_incident_action(16)
+    assert action_obj.action_type in ["investigate", "diagnose", "remediate", "give_up"]
+
