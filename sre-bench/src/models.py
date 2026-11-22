@@ -1,6 +1,6 @@
 """Pydantic models for SREBench environment."""
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Literal
+from typing import List, Dict, Optional, Literal, Any
 
 
 class ServiceStatus(BaseModel):
@@ -21,6 +21,14 @@ class IncidentAction(BaseModel):
     params: Dict = Field(default_factory=dict)
 
 
+class ActionSchema(BaseModel):
+    """Schema definition for agent actions in OpenEnv."""
+    action_type: Literal["investigate", "diagnose", "remediate", "give_up"]
+    command: str
+    target: str
+    params: Dict = Field(default_factory=dict)
+
+
 class IncidentObservation(BaseModel):
     """Observation returned to agent after each step."""
     alert_message: str
@@ -34,7 +42,7 @@ class IncidentObservation(BaseModel):
 class IncidentReward(BaseModel):
     """Reward signal with breakdown."""
     value: float = Field(ge=-1.0, le=1.0)
-    breakdown: Dict[str, float] = Field(default_factory=dict)
+    breakdown: Dict[str, Any] = Field(default_factory=dict)
     episode_id: str = ""
 
 

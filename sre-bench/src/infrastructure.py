@@ -342,6 +342,37 @@ class Infrastructure:
         for i, template in enumerate(templates[:3]):
             # Prepare all possible format keywords
             format_kwargs = {
+                "throttle_pct": self.rng.randint(60, 95),
+                "queue_depth": self.rng.randint(55, 150),
+                "active": self.rng.randint(48, 64),
+                "max": self.rng.choice([64, 128]),
+                "heap_mb": self.rng.randint(3800, 4000),
+                "heap_max": 4096,
+                "heap_pct": self.rng.randint(92, 98),
+                "gc_count": self.rng.randint(12, 35),
+                "finalizer_depth": self.rng.randint(150, 400),
+                "growth_mb": self.rng.randint(50, 200),
+                "disk_pct": self.rng.randint(92, 99),
+                "wal_count": self.rng.randint(45, 120),
+                "hostname": f"{service_name}.internal.svc",
+                "delay": self.rng.randint(2500, 5000),
+                "service": service_name,
+                "ttl_ago": self.rng.randint(60, 600),
+                "txn_id": f"tx_{self.rng.randint(10000, 99999)}",
+                "blocking_txn": f"tx_{self.rng.randint(10000, 99999)}",
+                "wait_ms": self.rng.randint(5000, 15000),
+                "table": self.rng.choice(["orders", "users", "payments", "ledger"]),
+                "lock_queue": self.rng.randint(8, 30),
+                "days_ago": self.rng.randint(1, 14),
+                "client_ip": f"10.0.{self.rng.randint(1, 254)}.{self.rng.randint(1, 254)}",
+                "cn": f"{service_name}.internal",
+                "expiry_date": "2026-11-01 00:00:00",
+                "running_hash": f"{self.rng.randint(0x100000, 0xffffff):x}",
+                "expected_hash": f"{self.rng.randint(0x100000, 0xffffff):x}",
+                "flag": self.rng.choice(["enable_v2_api", "stream_processing", "async_writes", "new_billing_engine"]),
+                "old_rps": self.rng.choice([1000, 2000, 5000]),
+                "new_rps": self.rng.choice([100, 200, 500]),
+                "reload_time": datetime.now().strftime("%H:%M:%S"),
                 "mem": self.rng.randint(91, 99),
                 "gc_ms": self.rng.randint(220, 420),
                 "pool_pct": self.rng.randint(95, 100),
@@ -358,10 +389,10 @@ class Infrastructure:
                 "timeout_ms": self.rng.choice([3500, 5000, 7000]),
             }
             
-            # Format template with available kwargs (ignore missing ones)
+            # Format template with available kwargs
             try:
-                msg = template.format(**{k: v for k, v in format_kwargs.items() if "{" + k + "}" in template})
-            except (KeyError, ValueError):
+                msg = template.format(**format_kwargs)
+            except Exception:
                 # Fallback if formatting fails
                 msg = template
             
@@ -526,14 +557,29 @@ class Infrastructure:
     def _recover_dependents(self, service_name: str):
         """Recover services that depend on the given service."""
         for name, config in SERVICES.items():
-            if service_name in config["depends_on"] and name in self.affected_services:
-                svc = self.services[name]
-                svc.status = "healthy"
-                svc.error_rate_percent = 0.0
-                svc.latency_p99_ms = self.rng.uniform(80, 150)
-                svc.cpu_percent = self.rng.uniform(20, 40)
-                svc.memory_percent = self.rng.uniform(40, 60)
-                self._recover_dependents(name)
+            if service_name in config.get("depends_on", []):
+                svc = self.services.get(name)
+                if not svc:
+                    continue
+                # A service with its own active fault should not be auto-recovered
+                if svc.fault_type is not None:
+                    continue
+                deps = config.get("depends_on", [])
+                all_deps_healthy = all(
+                    self.services[dep].status == "healthy"
+                    for dep in deps
+                    if dep in self.services
+                )
+                if all_deps_healthy:
+                    if svc.status != "healthy":
+                        svc.status = "healthy"
+                        svc.error_rate_percent = 0.0
+                        svc.latency_p99_ms = self.rng.uniform(80, 150)
+                        svc.cpu_percent = self.rng.uniform(20, 40)
+                        svc.memory_percent = self.rng.uniform(40, 60)
+                        self._recover_dependents(name)
+                else:
+                    svc.status = "degraded"
     
     def _scale_service(self, target: str, params: dict) -> str:
         """Scale up a service."""
@@ -587,16 +633,7 @@ class Infrastructure:
             svc.fault_type = None
             svc.metrics_history["cache_hit_ratio"] = 97  # Recovery
             svc.status = "healthy"
-            # Reset affected downstream services
-            for name in ["payment-service", "user-service"]:
-                if name in self.services:
-                    s = self.services[name]
-                    if s.status == "degraded":
-                        s.status = "healthy"
-                        s.error_rate_percent = 0.0
-                        s.latency_p99_ms = self.rng.uniform(100, 200)
-                        # Recover services that depend on this one
-                        self._recover_dependents(name)
+            self._recover_dependents(target)
             return f"✓ Flushed cache on {target}. Fragmentation resolved. Cache hit ratio recovered to 97%."
         
         return f"~ Flushed cache on {target}. No fragmentation detected."
@@ -637,12 +674,25 @@ class Infrastructure:
     
     def _failover(self, target: str) -> str:
         """Failover to replica (database only)."""
-        if target == "database-primary":
-            # Simulate failover to replica
-            replica = self.services["database-replica"]
-            replica.status = "healthy"
-            replica.error_rate_percent = 0.0
-            return f"✓ Failed over from {target} to database-replica. Primary replica is now serving traffic."
+        if target in ("database-primary", "database-replica"):
+            # Accept both database-primary and database-replica
+            replica = self.services.get("database-replica")
+            primary = self.services.get("database-primary")
+            if replica:
+                replica.status = "healthy"
+                replica.error_rate_percent = 0.0
+                replica.latency_p99_ms = 80.0
+                replica.cpu_percent = 30.0
+                replica.memory_percent = 50.0
+                replica.fault_type = None
+                replica.metrics_history.pop("replication_lag_ms", None)
+                replica.metrics_history.pop("replication_lag_seconds", None)
+            if primary:
+                primary.fault_type = None
+                primary.metrics_history.pop("replication_lag_ms", None)
+                primary.metrics_history.pop("replication_lag_seconds", None)
+            self._recover_dependents("database-replica")
+            return f"✓ Failed over from {target} to database-replica. Replica is healthy and serving traffic."
         return f"~ Failover not applicable for {target}."
     
     def get_all_services(self) -> List[Dict]:

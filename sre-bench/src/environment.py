@@ -1,7 +1,7 @@
 """Main SREBench environment."""
 import random
 import uuid
-from typing import Tuple, Dict, List, Set
+from typing import Tuple, Dict, List, Set, Any
 from .models import (
     IncidentAction, IncidentObservation, IncidentReward, 
     IncidentState, ServiceStatus
@@ -17,6 +17,7 @@ INCIDENTS = {
         "ground_truth_fix": "restart",
         "description": "payment-service OOMKilled due to memory leak",
         "max_steps": 30,
+        "optimal_steps": 4,
     },
     "medium_cascade": {
         "root_cause_service": "database-primary",
@@ -25,6 +26,7 @@ INCIDENTS = {
         "ground_truth_fix": "increase_pool",
         "description": "database connection pool exhausted causing cascading timeouts",
         "max_steps": 30,
+        "optimal_steps": 4,
     },
     "hard_intermittent": {
         "root_cause_service": "cache-redis",
@@ -33,6 +35,7 @@ INCIDENTS = {
         "ground_truth_fix": "flush_cache",
         "description": "Subtle cache fragmentation causing intermittent fallback to DB",
         "max_steps": 30,
+        "optimal_steps": 4,
     },
     "expert_network_partition": {
         "root_cause_service": "database-replica",
@@ -41,6 +44,7 @@ INCIDENTS = {
         "ground_truth_fix": "failover",
         "description": "Network partition between primary and replica causing replication lag",
         "max_steps": 35,
+        "optimal_steps": 4,
     },
     "expert_database_replica_sync": {
         "root_cause_service": "database-primary",
@@ -49,6 +53,7 @@ INCIDENTS = {
         "ground_truth_fix": "restart",
         "description": "Database replica sync failure causing data inconsistency",
         "max_steps": 35,
+        "optimal_steps": 4,
     },
     "medium_cpu_spike": {
         "root_cause_service": "api-gateway",
@@ -57,6 +62,7 @@ INCIDENTS = {
         "ground_truth_fix": "scale_up",
         "description": "CPU saturation on API gateway causing request queuing and timeouts",
         "max_steps": 30,
+        "optimal_steps": 4,
     },
     "medium_memory_leak": {
         "root_cause_service": "user-service",
@@ -65,6 +71,7 @@ INCIDENTS = {
         "ground_truth_fix": "restart",
         "description": "Gradual memory leak in user-service causing increasing GC pressure",
         "max_steps": 30,
+        "optimal_steps": 4,
     },
     "hard_disk_pressure": {
         "root_cause_service": "database-primary",
@@ -73,6 +80,7 @@ INCIDENTS = {
         "ground_truth_fix": "increase_pool",
         "description": "Disk I/O bottleneck on database-primary from WAL accumulation",
         "max_steps": 30,
+        "optimal_steps": 4,
     },
     "hard_dns_resolution": {
         "root_cause_service": "api-gateway",
@@ -81,6 +89,7 @@ INCIDENTS = {
         "ground_truth_fix": "restart",
         "description": "DNS resolution failure making all downstream services unreachable",
         "max_steps": 30,
+        "optimal_steps": 4,
     },
     "expert_deadlock": {
         "root_cause_service": "database-primary",
@@ -89,6 +98,7 @@ INCIDENTS = {
         "ground_truth_fix": "restart",
         "description": "Database deadlock causing cascading transaction timeouts",
         "max_steps": 35,
+        "optimal_steps": 4,
     },
     "expert_cert_expiry": {
         "root_cause_service": "api-gateway",
@@ -97,6 +107,7 @@ INCIDENTS = {
         "ground_truth_fix": "rollback",
         "description": "Expired TLS certificate rejecting all client connections",
         "max_steps": 35,
+        "optimal_steps": 4,
     },
     "hard_config_drift": {
         "root_cause_service": "payment-service",
@@ -105,6 +116,7 @@ INCIDENTS = {
         "ground_truth_fix": "rollback",
         "description": "Configuration drift after bad deploy causing intermittent 503 errors",
         "max_steps": 30,
+        "optimal_steps": 4,
     },
 }
 
@@ -154,6 +166,9 @@ class SREBenchEnvironment:
     
     def reset(self, task_id: str = "easy_restart") -> IncidentObservation:
         """Reset environment to initial state."""
+        if task_id not in INCIDENTS and task_id != "random":
+            raise ValueError(f"Unknown task: {task_id}")
+        self.resolution_step = None
         self.episode_id = str(uuid.uuid4())[:8]
         self.task_id = task_id
         self.step_count = 0
@@ -173,8 +188,7 @@ class SREBenchEnvironment:
             incident_config, resolved_task_id = self._get_random_task()
             self.task_id = resolved_task_id
         else:
-            incident_config = INCIDENTS.get(task_id, INCIDENTS["easy_restart"])
-            self.task_id = task_id if task_id in INCIDENTS else "easy_restart"
+            incident_config = INCIDENTS[task_id]
         self.current_incident_config = incident_config
         self.infrastructure = Infrastructure(seed=hash(self.episode_id) % (2**31))
         self.infrastructure.inject_incident(incident_config)
@@ -219,6 +233,7 @@ class SREBenchEnvironment:
 
         self.current_incident_config = {
             "is_compound": True,
+            "optimal_steps": 6,
             "configurations": configurations,
             "root_cause_service": normalized_roots,
             "fault_type": normalized_faults,
@@ -252,6 +267,7 @@ class SREBenchEnvironment:
 
             compound_config = {
                 "is_compound": True,
+                "optimal_steps": 6,
                 "configurations": [
                     {
                         "root_cause_service": cfg_a["root_cause_service"],
@@ -302,6 +318,8 @@ class SREBenchEnvironment:
     
     def step(self, action: IncidentAction) -> Tuple[IncidentObservation, IncidentReward, bool, Dict]:
         """Take one step in the environment."""
+        if isinstance(action, dict):
+            action = IncidentAction(**action)
         self.step_count += 1
         self.sla_remaining_minutes = max(0, 30.0 - (self.step_count * 1.0))
         
@@ -314,7 +332,7 @@ class SREBenchEnvironment:
             done = True
             return self._make_observation(), IncidentReward(
                 value=reward_value, 
-                breakdown={"action": "give_up"},
+                breakdown={"give_up": -0.5},
                 episode_id=self.episode_id
             ), done, {}
         
@@ -462,15 +480,17 @@ class SREBenchEnvironment:
 
         # Penalize risky remediation patterns that game the environment.
         safety_penalty = 0.0
-        # Penalty for remediating services that are NOT the root cause
+        # Penalize for remediating services that are NOT the root cause
         incident_config = self._get_active_incident_config()
         root_cause = incident_config.get("root_cause_service", "")
         if isinstance(root_cause, list):
             allowed_roots = set(root_cause)
         else:
             allowed_roots = {root_cause} if root_cause else set()
-        if action.action_type == "remediate" and allowed_roots and action.target not in allowed_roots:
-            safety_penalty -= 0.15  # Non-root-cause remediation penalty
+        if action.action_type == "remediate" and allowed_roots:
+            is_valid_failover = (action.command == "failover" and action.target in {"database-replica", "database-primary"} and any(r in {"database-replica", "database-primary"} for r in allowed_roots))
+            if action.target not in allowed_roots and not is_valid_failover:
+                safety_penalty -= 0.15  # Non-root-cause remediation penalty
 
         if action.command == "restart":
             self.restart_targets.add(action.target)
@@ -506,3 +526,38 @@ class SREBenchEnvironment:
         """Check if all services are healthy."""
         services = self.infrastructure.services
         return all(s.status == "healthy" for s in services.values())
+
+    def get_tasks(self) -> Dict[str, Any]:
+        """Get available tasks in the environment."""
+        tasks = [
+            {
+                "id": tid,
+                "name": cfg.get("description", tid),
+                "difficulty": tid.split("_")[0],
+                "description": cfg["description"],
+            }
+            for tid, cfg in INCIDENTS.items()
+        ]
+        tasks.append({
+            "id": "random",
+            "name": "Random Incident",
+            "description": "Procedurally generated — a random fault is selected each episode.",
+            "difficulty": "random",
+        })
+        schema = IncidentAction.model_json_schema() if hasattr(IncidentAction, "model_json_schema") else IncidentAction.schema()
+        return {"tasks": tasks, "action_schema": schema}
+
+    def get_state(self) -> Dict[str, Any]:
+        """Get the current state of the environment."""
+        if not self.infrastructure:
+            return {}
+        st = self.state()
+        return st.model_dump() if hasattr(st, "model_dump") else st.dict()
+
+    def get_observation_space(self) -> Dict[str, Any]:
+        """Get the observation space specification."""
+        return IncidentObservation.model_json_schema() if hasattr(IncidentObservation, "model_json_schema") else IncidentObservation.schema()
+
+    def get_action_space(self) -> Dict[str, Any]:
+        """Get the action space specification."""
+        return IncidentAction.model_json_schema() if hasattr(IncidentAction, "model_json_schema") else IncidentAction.schema()

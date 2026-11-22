@@ -1,0 +1,319 @@
+{
+  "timestamp": "2026-11-22T10:23:57Z",
+  "environment": "SREBench-v1.0",
+  "num_tasks": 12,
+  "num_compound_tasks": 50,
+  "seeds_per_task": 50,
+  "total_episodes_per_agent": 650,
+  "baselines": {
+    "Random Agent": {
+      "agent": "Random Agent",
+      "total_episodes": 650,
+      "elapsed_seconds": 0.916,
+      "episodes_per_sec": 709.72,
+      "mean_reward": -2.8557,
+      "std_reward": 1.4698,
+      "pass_rate": 0.2015,
+      "mean_steps_to_resolution": 26.96,
+      "task_breakdown": {
+        "easy_restart": {
+          "mean_reward": -2.7288,
+          "std_reward": 1.3573,
+          "pass_rate": 0.26,
+          "mean_steps": 26.4,
+          "episodes": 50
+        },
+        "medium_cascade": {
+          "mean_reward": -2.8838,
+          "std_reward": 1.4909,
+          "pass_rate": 0.22,
+          "mean_steps": 26.88,
+          "episodes": 50
+        },
+        "hard_intermittent": {
+          "mean_reward": -2.7152,
+          "std_reward": 1.5222,
+          "pass_rate": 0.22,
+          "mean_steps": 26.24,
+          "episodes": 50
+        },
+        "expert_network_partition": {
+          "mean_reward": -2.4382,
+          "std_reward": 1.6675,
+          "pass_rate": 0.38,
+          "mean_steps": 23.98,
+          "episodes": 50
+        },
+        "expert_database_replica_sync": {
+          "mean_reward": -3.1114,
+          "std_reward": 1.4236,
+          "pass_rate": 0.1,
+          "mean_steps": 28.28,
+          "episodes": 50
+        },
+        "medium_cpu_spike": {
+          "mean_reward": -2.6096,
+          "std_reward": 1.5765,
+          "pass_rate": 0.3,
+          "mean_steps": 25.26,
+          "episodes": 50
+        },
+        "medium_memory_leak": {
+          "mean_reward": -2.9678,
+          "std_reward": 1.5121,
+          "pass_rate": 0.2,
+          "mean_steps": 26.86,
+          "episodes": 50
+        },
+        "hard_disk_pressure": {
+          "mean_reward": -2.8616,
+          "std_reward": 1.472,
+          "pass_rate": 0.22,
+          "mean_steps": 26.88,
+          "episodes": 50
+        },
+        "hard_dns_resolution": {
+          "mean_reward": -3.018,
+          "std_reward": 1.4735,
+          "pass_rate": 0.2,
+          "mean_steps": 27.3,
+          "episodes": 50
+        },
+        "expert_deadlock": {
+          "mean_reward": -3.0624,
+          "std_reward": 1.4393,
+          "pass_rate": 0.1,
+          "mean_steps": 28.28,
+          "episodes": 50
+        },
+        "expert_cert_expiry": {
+          "mean_reward": -2.7776,
+          "std_reward": 1.4792,
+          "pass_rate": 0.24,
+          "mean_steps": 26.6,
+          "episodes": 50
+        },
+        "hard_config_drift": {
+          "mean_reward": -3.023,
+          "std_reward": 1.2554,
+          "pass_rate": 0.16,
+          "mean_steps": 28.12,
+          "episodes": 50
+        },
+        "procedural_compound": {
+          "mean_reward": -2.9262,
+          "std_reward": 1.2216,
+          "pass_rate": 0.02,
+          "mean_steps": 29.42,
+          "episodes": 50
+        }
+      }
+    },
+    "Heuristic Triage Agent": {
+      "agent": "Heuristic Triage Agent",
+      "total_episodes": 650,
+      "elapsed_seconds": 0.534,
+      "episodes_per_sec": 1217.14,
+      "mean_reward": 0.9307,
+      "std_reward": 0.1177,
+      "pass_rate": 0.9754,
+      "mean_steps_to_resolution": 4.92,
+      "task_breakdown": {
+        "easy_restart": {
+          "mean_reward": 0.96,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "medium_cascade": {
+          "mean_reward": 0.96,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "hard_intermittent": {
+          "mean_reward": 1.06,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 6.0,
+          "episodes": 50
+        },
+        "expert_network_partition": {
+          "mean_reward": 0.89,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "expert_database_replica_sync": {
+          "mean_reward": 0.96,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "medium_cpu_spike": {
+          "mean_reward": 0.89,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "medium_memory_leak": {
+          "mean_reward": 0.9248,
+          "std_reward": 0.1194,
+          "pass_rate": 0.92,
+          "mean_steps": 6.08,
+          "episodes": 50
+        },
+        "hard_disk_pressure": {
+          "mean_reward": 0.96,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "hard_dns_resolution": {
+          "mean_reward": 0.89,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "expert_deadlock": {
+          "mean_reward": 0.96,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "expert_cert_expiry": {
+          "mean_reward": 0.89,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "hard_config_drift": {
+          "mean_reward": 0.96,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "procedural_compound": {
+          "mean_reward": 0.794,
+          "std_reward": 0.3445,
+          "pass_rate": 0.76,
+          "mean_steps": 11.86,
+          "episodes": 50
+        }
+      }
+    },
+    "Oracle Upper Bound": {
+      "agent": "Oracle Upper Bound",
+      "total_episodes": 650,
+      "elapsed_seconds": 0.368,
+      "episodes_per_sec": 1767.17,
+      "mean_reward": 0.9362,
+      "std_reward": 0.0449,
+      "pass_rate": 1.0,
+      "mean_steps_to_resolution": 4.11,
+      "task_breakdown": {
+        "easy_restart": {
+          "mean_reward": 0.96,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "medium_cascade": {
+          "mean_reward": 0.96,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "hard_intermittent": {
+          "mean_reward": 0.96,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "expert_network_partition": {
+          "mean_reward": 0.89,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "expert_database_replica_sync": {
+          "mean_reward": 0.96,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "medium_cpu_spike": {
+          "mean_reward": 0.89,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "medium_memory_leak": {
+          "mean_reward": 0.96,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "hard_disk_pressure": {
+          "mean_reward": 0.96,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "hard_dns_resolution": {
+          "mean_reward": 0.89,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "expert_deadlock": {
+          "mean_reward": 0.96,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "expert_cert_expiry": {
+          "mean_reward": 0.89,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "hard_config_drift": {
+          "mean_reward": 0.96,
+          "std_reward": 0.0,
+          "pass_rate": 1.0,
+          "mean_steps": 4.0,
+          "episodes": 50
+        },
+        "procedural_compound": {
+          "mean_reward": 0.9312,
+          "std_reward": 0.1145,
+          "pass_rate": 1.0,
+          "mean_steps": 5.44,
+          "episodes": 50
+        }
+      }
+    }
+  }
+}

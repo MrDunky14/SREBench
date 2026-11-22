@@ -43,19 +43,13 @@ def grade_expert_network(env) -> float:
         score -= 0.25
 
     # Efficiency comparison
-    cached_solution = env.solution_cache.get(env.task_id)
-    if cached_solution:
-        optimal_steps = cached_solution['steps']
-        actual_steps = final_state.step_count
-        if actual_steps <= optimal_steps:
-            score += 0.15
-        else:
-            extra_steps = actual_steps - optimal_steps
-            score -= min(extra_steps * 0.01, 0.15)
+    incident = getattr(env, "current_incident_config", None) or INCIDENTS.get(env.task_id, {})
+    optimal_steps = incident.get("optimal_steps", 4)
+    actual_steps = final_state.step_count
+    if actual_steps <= optimal_steps:
+        score += 0.15
     else:
-        if final_state.step_count <= 5:
-            score += 0.15
-        elif final_state.step_count <= 8:
-            score += 0.05
+        extra_steps = actual_steps - optimal_steps
+        score -= min(extra_steps * 0.01, 0.15)
 
     return min(max(score, 0.001), 0.999)

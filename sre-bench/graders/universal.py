@@ -96,19 +96,12 @@ def grade_universal(env) -> float:
         score -= 0.10
 
     # 6. Efficiency (0.15)
-    cached_solution = env.solution_cache.get(env.task_id)
-    if cached_solution:
-        optimal_steps = cached_solution["steps"]
-        actual_steps = final_state.step_count
-        if actual_steps <= optimal_steps:
-            score += 0.15
-        else:
-            extra_steps = actual_steps - optimal_steps
-            score -= min(extra_steps * 0.01, 0.15)
+    optimal_steps = incident.get("optimal_steps", 4)
+    actual_steps = final_state.step_count
+    if actual_steps <= optimal_steps:
+        score += 0.15
     else:
-        if final_state.step_count <= 8:
-            score += 0.10
-        elif final_state.step_count <= 12:
-            score += 0.05
+        extra_steps = actual_steps - optimal_steps
+        score -= min(extra_steps * 0.01, 0.15)
 
     return min(max(score, 0.001), 0.999)

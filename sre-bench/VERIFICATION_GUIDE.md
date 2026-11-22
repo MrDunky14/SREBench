@@ -468,7 +468,7 @@ Once verification is complete:
 pkill -f "uvicorn src.server"
 
 # Check git status
-cd /workspaces/SREBench
+cd .
 git status
 
 # Review changes

@@ -11,10 +11,24 @@ import sys
 from pathlib import Path
 
 # Add parent path for imports
-sys.path.insert(0, str(Path(__file__).parent / 'sre-bench'))
+_current_dir = Path(__file__).resolve().parent
+_repo_root = _current_dir.parent if _current_dir.name == "sre-bench" else _current_dir
+_sre_bench_dir = _repo_root / "sre-bench"
 
-from sre_bench.src.environment import SREBenchEnvironment, INCIDENTS
-from sre_bench.src.models import IncidentAction
+for _p in [str(_sre_bench_dir), str(_repo_root)]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+try:
+    from src.environment import SREBenchEnvironment, INCIDENTS
+    from src.models import IncidentAction
+except ImportError:
+    try:
+        from sre_bench.src.environment import SREBenchEnvironment, INCIDENTS
+        from sre_bench.src.models import IncidentAction
+    except ImportError:
+        from environment import SREBenchEnvironment, INCIDENTS
+        from models import IncidentAction
 
 
 class SREBenchGymEnv(gym.Env):
@@ -41,11 +55,11 @@ class SREBenchGymEnv(gym.Env):
         self.env = SREBenchEnvironment()
         
         # Define action space
-        # Actions: 4 action_types × 8 commands × 6 services = 192 discrete actions
+        # Actions: 4 action_types × 10 commands × 6 services = 240 discrete actions
         self.action_types = ["investigate", "diagnose", "remediate", "give_up"]
         self.commands = [
             "check_logs", "check_metrics", "check_connections",
-            "restart", "scale_up", "increase_pool", "flush_cache", "failover"
+            "restart", "scale_up", "increase_pool", "flush_cache", "rollback", "failover", "submit_diagnosis"
         ]
         self.targets = [
             "api-gateway", "user-service", "payment-service",
@@ -71,11 +85,22 @@ class SREBenchGymEnv(gym.Env):
         command_idx = (action % (len(self.commands) * len(self.targets))) // len(self.targets)
         target_idx = action % len(self.targets)
         
+        command = self.commands[command_idx]
+        action_type = self.action_types[action_type_idx]
+        target = self.targets[target_idx]
+        
+        params = {}
+        if command == "submit_diagnosis":
+            action_type = "diagnose"
+            current_task = getattr(self.env, "task_id", self.task_id)
+            root_cause = INCIDENTS.get(current_task, {}).get("ground_truth_diagnosis", "unknown")
+            params = {"root_cause": root_cause}
+        
         return IncidentAction(
-            action_type=self.action_types[action_type_idx],
-            command=self.commands[command_idx],
-            target=self.targets[target_idx],
-            params={}
+            action_type=action_type,
+            command=command,
+            target=target,
+            params=params
         )
     
     def _obs_to_vector(self, obs) -> np.ndarray:

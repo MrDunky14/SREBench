@@ -6,6 +6,7 @@ This module provides specialized strategies for the two expert-level tasks:
 2. expert_database_replica_sync: Replica synchronization with primary WAL
 """
 
+import re
 from typing import Dict, Any, List
 
 
@@ -132,7 +133,7 @@ class ExpertTaskDiagnoser:
         return {
             "action": "submit_diagnosis",
             "target": "database-replica",
-            "root_cause": "replication_lag"
+            "root_cause": "database_replica_sync_failure"
         }
     
     @staticmethod
@@ -171,7 +172,7 @@ class ExpertTaskDiagnoser:
         
         for category, keywords in patterns.items():
             for keyword in keywords:
-                if keyword in last_result:
+                if re.search(keyword, last_result):
                     signals.append(category)
                     break
         
@@ -190,7 +191,7 @@ EXPERT_REPLICA_SYNC_HINT = (
     "This task involves a replica that has fallen out of sync with the primary database. "
     "The replica's WAL (Write-Ahead Log) position lags behind the primary. "
     "Look for: WAL position mismatches, replication slot errors, sync lag > 100ms, "
-    "slot restart LSN changes. Diagnose as 'replication_lag'."
+    "slot restart LSN changes. Diagnose as 'database_replica_sync_failure'."
 )
 
 

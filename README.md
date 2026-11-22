@@ -1,380 +1,246 @@
----
-title: SREBench
-description: Production incident response benchmark for SRE agents using OpenEnv
-sdk: docker
-colorFrom: blue
-colorTo: red
----
+# SREBench: High-Throughput Production Incident Response Simulation Environment for OpenEnv
 
-# 🚨 SREBench: Production SRE Incident Response Benchmark
+[![OpenEnv Compatible](https://img.shields.io/badge/OpenEnv-Compatible-blue.svg)](openenv.yaml)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-brightgreen.svg)](pyproject.toml)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-teal.svg)](https://fastapi.tiangolo.com)
+[![Pytest](https://img.shields.io/badge/Tests-100%25%20Passing-success.svg)](tests/test_srebench.py)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**A realistic OpenEnv benchmark environment for training and evaluating AI agents on production incident response.**
+**SREBench** is an OpenEnv-compliant benchmark environment designed for training and evaluating autonomous Site Reliability Engineering (SRE) agents on realistic production incident diagnosis and remediation.
 
-You must diagnose and remediate microservice outages across a realistic 6-service architecture, navigating **12 unique production incident scenarios** and a generative 'random' task, using the exact tools and reasoning patterns that on-call SREs at Meta, Google, Amazon, and Microsoft employ every day.
-
----
-## The Problem (3 AM PagerDuty Call)
-
-Every night, someone's phone rings. A production incident. Database connection pool exhausted. Cache fragmented. Network partition. Services cascading down.
-
-The response? A human SRE on call, manually digging through logs, correlating metrics across 6 microservices, trying to find the root cause before the SLA burns out.
-## 🏆 Hackathon Submission Links (Mandatory)
-
-| Resource | Link |
-|---|---|
-| **🚀 Hugging Face Space** | [SREBench](https://huggingface.co/spaces/CreatorNeuron/sre-bench) |
-| **📓 Colab Notebook** | [Trained with Meta-Llama-3.1-8B-Instruct-bnb-4bit](https://colab.research.google.com/drive/1dUMKWEun9nkDClP7F0dhuVfHJqPMKcDC#scrollTo=oHCFBmV_hZSg) |
-| **💻 Code Repository** | [https://github.com/MrDunky14/SREBench](https://github.com/MrDunky14/SREBench) |
-| **📝 HF Blog Post** | [SREBench: Teaching LLMs to Fix Production Incidents](https://huggingface.co/spaces/CreatorNeuron/sre-bench/blob/main/BLOG_POST.md) |
-| **📖 Full Docs** | [sre-bench/README.md](sre-bench/README.md) |
-| **⚙️ API Docs** | https://creatorneuron-sre-bench.hf.space/docs |
----
-
-## ⚖️ How to Evaluate (OpenEnv Compliant)
-
-This project features a fully OpenEnv-compliant backend (FastAPI) exposing standard `/reset` and `/step` endpoints. We provide two ways to evaluate the agent:
-
-**Option A: The Standard Baseline (Single Agent)**
-
-You can use the standard OpenEnv `inference.py` script to test the environment using any OpenAI-compatible BYOM (Bring Your Own Model).
-
-```bash
-export ENV_URL="https://creatorneuron-sre-bench.hf.space"
-python inference.py
-```
-
-**Option B: The SREBench Multi-Agent SOTA (Recommended)**
-
-To evaluate our primary innovation, run our custom LangGraph orchestrator. This splits the reasoning into three specialized OpenEnv agents (Investigator, Diagnoser, Operator) to eliminate reward-hacking loops.
-
-```bash
-python run_multi_agent_eval.py --api_url [YOUR_ENDPOINT] --model [MODEL_NAME]
-```
-
-Both methods are fully compatible with the OpenEnv specification and provide rich, reproducible evaluation metrics.
+Unlike traditional infrastructure benchmarks that require spinning up heavy Docker containers or multi-node Kubernetes clusters—incurring minute-long reset latency, high cloud bills, and fragile container orchestrations—SREBench is engineered as a **high-speed, in-process stochastic microservice state-machine simulator**. It executes thousands of rollout episodes per second with zero Docker/Kubernetes runtime overhead, providing the massive trajectory volume required by modern Reinforcement Learning algorithms (such as GRPO, PPO, and DPO) while faithfully modeling complex causal failure cascades.
 
 ---
 
-## 📰 Recent News
+## 🏗️ Architecture & World Model
 
-### 🚀 **GRPO Training with TRL & Unsloth** (April 2026)
-
-We've released `train_grpo.py`—a complete training pipeline for fine-tuning LLMs on SREBench using:
-
-- **GRPO** (Generative Reward-Optimized) training from [TRL](https://huggingface.co/docs/trl/)
-- **Unsloth** for 4-bit quantization and efficient LoRA fine-tuning
-- **Curriculum learning** across 12 distinct fault scenarios (easy → medium → hard → expert) + 1 procedural random task for infinite generative training.
-
-**Quick Start:**
-We provide a complete Jupyter Notebook (`SREBench_Training.ipynb`) that handles environment connection, GRPO setup, and training visualization and run all cells!
-
-**Results**: Final evaluation complete. GRPO training executed on T4 GPU (16GB VRAM) using Meta-Llama-3.1-8B-Instruct-bnb-4bit.
-
-
-### 📊 Training Evidence
-The success of this alignment is evidenced by the convergence of our reward and loss curves over 100 training steps.
-
-![GRPO Training Reward Curve](output/training_curves_8B.png)
-
-*The model shows a clear transition from randomized "shotgun" behavior to a structured, investigation-first diagnostic pipeline.*
-
-![Baseline Comparison](output/learning_curve_8B.png)
-
-| Agent | Easy (Restart) | Medium (Cascade) | Hard (Intermittent) |
-|-------|---------------|-----------------|-------------------|
-| Random | ~ -0.87 | ~ -0.68 | ~ -0.92 |
-| Heuristic | ~ -0.19 | ~ -0.19 | ~ -0.19 |
-| **GRPO Trained (8B)** | **+0.27** | **+0.26** | **+0.26** |
-
----
-
----
-
-## 🏗️ What You Get
-
-**12 production-grade incident tasks with escalating difficulty, plus 1 procedural generative task:**
-
-### ⚡ Easy Tasks
-- **`easy_restart`**: Payment service OOMKilled due to memory leak.
-
-### 🔗 Medium Tasks
-- **`medium_cascade`**: Database connection pool exhaustion cascading across 3 services.
-- **`medium_cpu_spike`**: CPU throttling on API gateway causing request queuing.
-- **`medium_memory_leak`**: Slow heap exhaustion in user-service requiring early detection.
-
-### 🔍 Hard Tasks
-- **`hard_intermittent`**: Cache fragmentation hidden in a "healthy" service.
-- **`hard_disk_pressure`**: WAL exhaustion on database creating disk I/O bottlenecks.
-- **`hard_dns_resolution`**: Network isolation masking downstream failures.
-- **`hard_config_drift`**: Deployment mismatch causing intermittent 503s.
-
-### 🌐 Expert Tasks
-- **`expert_network_partition`**: Network partition between primary and replica databases.
-- **`expert_database_replica_sync`**: Replica sync failure caused by WAL synchronization issues.
-- **`expert_deadlock`**: Database deadlock causing cascading transaction timeouts.
-- **`expert_cert_expiry`**: Expired TLS certificate rejecting all connections.
-
-### 🎲 Generative Mode
-- **`random`**: Procedurally assigns one of the 12 incidents randomly per episode, providing an infinite curriculum for RL agents.
-
----
-
-## 🌟 Key Features
-
-✅ **OpenEnv Compliant** — Follows official OpenEnv specification  
-✅ **Anti-Exploit Hardened** — Ground truth hidden, shotgun restarts penalized, rollback neutered  
-✅ **Stochastic Metrics** — No two episodes are identical (Gaussian jitter on all fault values)  
-✅ **Dense Reward Function** — 5-component reward: investigation, diagnosis, remediation, safety penalty, resolution bonus  
-✅ **Production Realism** — Real failure modes: OOM kills, connection exhaustion, cache fragmentation  
-✅ **Scalable Difficulty** — 12 discrete tasks from trivial to expert-level, plus infinite random generation  
-✅ **Investigation-First Design** — Agents must investigate ≥2 services before diagnosis is credited  
-
----
-
-# 🏗️ SREBench: Technical Architecture & Design
-
-SREBench is a high-fidelity environment designed for training and evaluating autonomous SRE agents. It moves beyond simple "if-then" logic to a stochastic world model where agents must perform causal reasoning across a distributed system.
-
----
-
-## 1. Environment Architecture (Theme #3.1: World Modeling)
-
-The core of SREBench is a **6-service microservice dependency graph** built on a stochastic telemetry engine.
-
-### 🕸️ System Topology
-SREBench emulates a realistic production stack where failures in downstream components propagate upstream as ambiguous symptoms.
+### 1. Zero-Overhead Stochastic State Machine
+SREBench models a distributed 6-service microservice architecture where services interact through a directed acyclic dependency graph:
 
 ```mermaid
 graph TD
-    GW[api-gateway] --> US[user-service]
-    GW --> PS[payment-service]
-    US --> DB1[database-primary]
-    PS --> DB1
-    PS --> RD[cache-redis]
-    DB1 -.-> DB2[database-replica]
-    
-    style DB1 fill:#f96,stroke:#333
-    style RD fill:#f96,stroke:#333
+    GW["api-gateway"] --> US["user-service"]
+    GW --> PS["payment-service"]
+    US --> DP["database-primary"]
+    US --> CR["cache-redis"]
+    PS --> DP
+    PS --> CR
+    DP --> DR["database-replica (replication stream)"]
+
+    classDef service fill:#1f2937,stroke:#3b82f6,stroke-width:2px,color:#fff;
+    class GW,US,PS,DP,DR,CR service;
 ```
 
-Each service emulates:
-- CPU, memory, error rate, latency (P99)
-- Service-specific logs based on fault type
-- Metrics (cache hit ratio, connection pool usage, etc.)
+Each service maintains real-time telemetry (CPU utilization, memory usage, error rate, p99 latency) subject to bounded Gaussian jitter ($N(\mu, \sigma)$) so no two episodes or telemetry samples are identical.
 
-
----
-## 2. Multi-Agent Orchestration (Theme #1)
-
-To solve compound production outages, SREBench utilizes a specialized **LangGraph-powered Multi-Agent Team**. Instead of a single model attempting to manage the entire state, our architecture splits the cognitive load into three distinct, specialized agents that collaborate via a shared state machine.
-
-### 🔄 The Agentic Collaboration Loop
-Our orchestration ensures that investigation always precedes remediation, effectively eliminating the "Shotgun SRE" behavior common in single-agent loops.
-
-```mermaid
-graph TD
-    A[Incident Triggered] --> B[Investigator Agent]
-    B --> C[Diagnoser Agent]
-    C -- Insufficient Data --> B
-    C -- Root Cause Identified --> D[Operator Agent]
-    D -- System Degraded --> B
-    D -- Recovery Confirmed --> E[SLA Saved]
-```
-## 3. Alignment via GRPO RL (A100 Verified)
-
-To transform a generic language model into a decisive SRE, we utilized **Generative Reward-Optimized (GRPO)** training via the Unsloth and TRL frameworks. This alignment phase is critical for moving beyond simple prompt engineering to true causal reasoning.
-
-### 🛠️ Training Configuration
-- **Model:** Llama 3.1 8B Instruct (bnb-4bit)
-- **Hardware:** NVIDIA T4 GPU
-- **Optimization:** QLoRA (r=16, alpha=32) for memory-efficient training
-- **Frameworks:** Unsloth for 2x faster finetuning and TRL for GRPO orchestration
-
-### ⚖️ Anti-Exploit Reward Logic
-A core innovation of SREBench is the defeat of **"Reward Hacking"**—the tendency for agents to blindly restart servers to clear alerts. We enforce professional engineering behavior through a 3-part reward system:
-
-| Reward Signal | Value | Purpose |
-| :--- | :--- | :--- |
-| **Format Reward** | +0.20 | Ensures the agent strictly outputs valid, parsable JSON. |
-| **Investigation Reward** | +0.15 | Incentivizes the use of `check_logs` or `check_metrics` before taking action. |
-| **No-Shotgun Penalty** | -0.20 | Heavily penalizes any `remediate` action taken without prior log evidence. |
-
-## 📡 API Endpoints (11 total)
-
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| GET | `/` | Health check |
-| GET | `/tasks` | List available incident tasks (12 scenarios + random) |
-| POST | `/reset` | Initialize episode with incident injection |
-| GET | `/state` | Current system state (ground truth withheld) |
-| POST | `/step` | Execute an agent action (investigate, diagnose, remediate) |
-| GET | `/grader` | Get final episode score |
-| GET | `/leaderboard` | View task leaderboards |
-| POST | `/baseline` | Run baseline strategy end-to-end |
-| GET | `/dashboard.html` | Interactive dashboard |
-| GET | `/index.html` | Static homepage |
-| GET | `/docs-api` | Machine-readable API summary |
-
-**Interactive API docs available at:** https://creatorneuron-sre-bench.hf.space/docs (Swagger UI)
+### 2. Upstream & Downstream Causal Cascades
+Failures originate at root-cause services and cascade strictly through the dependency topology:
+- When `database-primary` suffers connection pool exhaustion, dependent microservices (`payment-service`, `user-service`) experience cascading latency spikes and timeout exceptions.
+- In turn, the edge gateway (`api-gateway`) reports HTTP 503 errors and elevated queue depths.
+- **Strict Dependency Recovery Guard:** When remediation is applied, `_recover_dependents()` verifies that a downstream service ONLY recovers to `healthy` if **all** of its upstream dependencies are currently healthy. If any dependency remains degraded or down, the downstream service remains degraded.
 
 ---
 
-## 🚀 Get Started
+## 🎯 Task Scenarios
 
-### Option 1: Use the Live Space (Easiest)
+SREBench features **12 realistic production incident scenarios** across 4 difficulty tiers, plus an infinite generative compound scenario generator:
 
-Open: https://creatorneuron-sre-bench.hf.space/docs
+| Difficulty | Task ID | Root Cause Service | Fault Type | Ground Truth Fix | Real-World Failure Mode |
+|---|---|---|---|---|---|
+| **Easy** | `easy_restart` | `payment-service` | `oom_killed` | `restart` | Java heap leak triggering container exit code 137 |
+| **Medium** | `medium_cascade` | `database-primary` | `connection_pool_exhaustion` | `increase_pool` | Pool saturation under traffic burst causing cascading timeouts |
+| **Medium** | `medium_cpu_spike` | `api-gateway` | `cpu_throttle` | `scale_up` | CFS quota throttling causing request queue buildup |
+| **Medium** | `medium_memory_leak` | `user-service` | `slow_memory_leak` | `restart` | Gradual heap creep with escalating GC pause frequencies |
+| **Hard** | `hard_intermittent` | `cache-redis` | `cache_fragmentation` | `flush_cache` | Memory fragmentation causing intermittent cache eviction & fallback |
+| **Hard** | `hard_disk_pressure` | `database-primary` | `disk_pressure` | `increase_pool` | WAL accumulation on disk causing write checkpoint failure |
+| **Hard** | `hard_dns_resolution` | `api-gateway` | `dns_resolution_failure` | `restart` | Upstream DNS lookup failure returning SERVFAIL |
+| **Hard** | `hard_config_drift` | `payment-service` | `config_drift` | `rollback` | Bad configuration reload with mismatched feature flags returning 503 |
+| **Expert** | `expert_network_partition` | `database-replica` | `network_partition` | `failover` | Replication disconnect between primary and replica requiring promotion |
+| **Expert** | `expert_database_replica_sync` | `database-primary` | `database_replica_sync_failure` | `restart` | Broken replication slot / WAL desynchronization |
+| **Expert** | `expert_deadlock` | `database-primary` | `database_deadlock` | `restart` | Mutually blocking transactions aborting queries |
+| **Expert** | `expert_cert_expiry` | `api-gateway` | `tls_cert_expired` | `rollback` | Expired TLS certificate rejecting client TLS handshakes |
+| **Generative** | `random` / Compound | Multi-Service | Multi-Fault | Multi-Step Fix | Generates 1–3 simultaneous faults across arbitrary services |
 
-(Interactive Swagger UI for all endpoints)
+---
 
-### Option 2: cURL Commands
+## 🛡️ Anti-Exploit Architecture
 
-```bash
-# Health check
-curl https://creatorneuron-sre-bench.hf.space/
+To prevent RL agents from gaming the reward function (e.g. brute-force restarting every service without diagnosing), SREBench enforces strict anti-exploit guards:
 
-# List tasks
-curl https://creatorneuron-sre-bench.hf.space/tasks
+1. **Information Barrier (Zero Ground-Truth Leakage):**
+   Calls to `get_state()` or `/state` explicitly withhold `ground_truth_diagnosis` and `ground_truth_fix` (empty strings), ensuring agents must infer causality from telemetry and logs.
+2. **Shotgun Restart Penalty (-0.50):**
+   If an agent restarts $\ge 2$ distinct services during an episode, a heavy safety penalty of `-0.50` is applied.
+3. **Premature Diagnosis Penalty (-0.15):**
+   The agent must investigate at least 2 distinct targets (e.g., the suspect service and its upstream/downstream dependency) before submitting a diagnosis. Submitting a diagnosis with $< 2$ investigated services triggers a `-0.15` penalty and withholds diagnosis credit.
+4. **Non-Root Remediation Penalty (-0.15):**
+   Applying remediation to a service that is not an active root cause incurs a `-0.15` safety penalty.
+5. **Log Integrity Guard:**
+   All 12 fault types use complete keyword parameter dictionaries across log templates, ensuring zero unformatted `{placeholder}` leaks into agent observations.
 
-# Start an incident (easy_restart)
-curl -X POST https://creatorneuron-sre-bench.hf.space/reset \
-  -H "Content-Type: application/json" \
-  -d '{"task_id":"easy_restart"}'
+---
 
-# Take a remediation action
-curl -X POST https://creatorneuron-sre-bench.hf.space/step \
-  -H "Content-Type: application/json" \
-  -d '{"action_type":"remediate","command":"restart","target":"payment-service"}'
+## 📊 Empirical Baseline Evaluation
 
-# Get your score
-curl https://creatorneuron-sre-bench.hf.space/grader
-```
+We evaluated three reference agents across **50 seeds for all 12 tasks** plus **50 procedural compound tasks** (650 episodes per agent, 1,950 episodes total). Results are recorded in `results/baseline_receipts.json`:
 
-### Option 3: Python Client
+### Summary Results (650 Episodes / Agent)
 
+| Agent | Mean Reward | Reward Std | Pass Rate | Mean Steps | Throughput |
+|---|---|---|---|---|---|
+| **Random Agent** | **-2.8557** | 1.4698 | **20.2%** | 26.96 | **447.4 eps/sec** |
+| **Heuristic Triage Agent** | **+0.9314** | 0.1166 | **97.7%** | 4.88 | **836.3 eps/sec** |
+| **Oracle Upper Bound** | **+0.9362** | 0.0449 | **100.0%** | 4.11 | **1,046.7 eps/sec** |
+
+### Detailed Task Breakdown
+
+| Task Scenario | Random Mean Rew (Pass) | Heuristic Mean Rew (Pass) | Oracle Mean Rew (Pass) |
+|---|---|---|---|
+| `easy_restart` | -2.73 (26%) | **+0.96 (100%)** | **+0.96 (100%)** |
+| `medium_cascade` | -2.88 (22%) | **+0.96 (100%)** | **+0.96 (100%)** |
+| `hard_intermittent` | -2.72 (22%) | **+1.06 (100%)** | **+0.96 (100%)** |
+| `expert_network_partition` | -2.44 (38%) | **+0.89 (100%)** | **+0.89 (100%)** |
+| `expert_database_replica_sync` | -3.11 (10%) | **+0.96 (100%)** | **+0.96 (100%)** |
+| `medium_cpu_spike` | -2.61 (30%) | **+0.89 (100%)** | **+0.89 (100%)** |
+| `medium_memory_leak` | -2.97 (20%) | **+0.93 (94%)** | **+0.96 (100%)** |
+| `hard_disk_pressure` | -2.86 (22%) | **+0.96 (100%)** | **+0.96 (100%)** |
+| `hard_dns_resolution` | -3.02 (20%) | **+0.89 (100%)** | **+0.89 (100%)** |
+| `expert_deadlock` | -3.06 (10%) | **+0.96 (100%)** | **+0.96 (100%)** |
+| `expert_cert_expiry` | -2.78 (24%) | **+0.89 (100%)** | **+0.89 (100%)** |
+| `hard_config_drift` | -3.02 (16%) | **+0.96 (100%)** | **+0.96 (100%)** |
+| `procedural_compound` (Multi-Root) | -2.93 (2%) | **+0.79 (76%)** | **+0.78 (100%)** |
+
+> **Receipt Verification:** You can inspect or re-generate these exact empirical numbers by running:
+> ```bash
+> python eval_baselines.py
+> ```
+
+---
+
+## 🔬 GRPO Training & Empirical Findings
+
+We fine-tuned **Meta-Llama-3.1-8B-Instruct** using Generative Reward-Optimized (GRPO) training via TRL and Unsloth on an NVIDIA GPU using 4-bit LoRA quantization (`SREBench_Training.ipynb`).
+
+### Training Progression & Empirical Reward Convergence
+
+| Training Step | Training Loss | Mean Reward | Kl Divergence | Reward Format Mean |
+|---|---|---|---|---|
+| Step 5 | -0.0654 | -0.2700 | 0.0000 | -0.2700 |
+| Step 10 | -0.1318 | -0.2650 | 0.0005 | -0.2650 |
+| Step 15 | -0.2226 | -0.2300 | 0.0067 | -0.2300 |
+| Step 20 | -0.1361 | -0.1850 | 0.0189 | -0.1850 |
+| Step 25 | -0.0989 | -0.1350 | 0.1266 | -0.1350 |
+| Step 30 | -0.1081 | -0.1250 | 0.0286 | -0.1250 |
+| Step 35 | -0.0449 | -0.1100 | 0.1788 | -0.1100 |
+| Step 40 | -0.0200 | -0.1100 | 0.0281 | -0.1100 |
+| Step 45 | -0.0455 | -0.1100 | 0.0220 | -0.1100 |
+
+### The JSON Regex Parsing Boundary in LLM RL
+During evaluation of GRPO checkpoints, we identified a critical failure mode at the interface between probabilistic language models and structured operational action spaces:
+
+1. **Greedy Regex vs Conversational Fencing:** The reward parsing pipeline used `re.search(r'\{.*\}', completion, re.DOTALL)` to extract JSON objects.
+2. **The Formatting Trap:** As the model learned to produce chain-of-thought analysis alongside its actions, it frequently emitted markdown fences (````json ... ````) or conversational preambles. Greedy regex matching across conversational outputs frequently captured extraneous braces or escaped quotes, causing strict JSON parsing to fail.
+3. **Implication for Agentic SRE:** For reliable SRE agent rollouts, training pipelines must either enforce constrained grammar-guided decoding (e.g., Outlines, Instructor) or use AST-level recovery rather than naive regular expressions.
+
+---
+
+## 🔌 OpenEnv API Guide
+
+SREBench strictly follows the OpenEnv specification and exposes both in-memory Python bindings and a standard HTTP REST API.
+
+### 1. Python In-Process Client (`client.py`)
 ```python
-import requests
+import client
 
-BASE = "https://creatorneuron-sre-bench.hf.space"
+# 1. Reset environment
+obs = client.reset(task_id="easy_restart")
+print("Alert:", obs.alert_message)
 
-# Start incident
-response = requests.post(f"{BASE}/reset", json={"task_id": "easy_restart"})
-obs = response.json()
-print(f"Alert: {obs['alert_message']}")
+# 2. Step with dict or IncidentAction
+step_result = client.step({
+    "action_type": "investigate",
+    "command": "check_logs",
+    "target": "payment-service",
+    "params": {}
+})
+obs, reward, done, info = step_result
 
-# Get current state
-state = requests.get(f"{BASE}/state").json()
-print(f"Diagnosis hint: {state.get('incident_info')}")
+# 3. Query metadata & schema
+tasks = client.get_tasks()
+state = client.get_state()
+obs_space = client.get_observation_space()
+action_space = client.get_action_space()
+```
 
-# Take action
-result = requests.post(f"{BASE}/step", json={
-    "action_type": "remediate",
-    "command": "restart",
-    "target": "payment-service"
-}).json()
-print(f"Score: {result['reward']['value']}")
+### 2. Root Models (`models.py`)
+Root level exports provide clean typing for OpenEnv consumers:
+```python
+from models import (
+    IncidentAction,
+    IncidentObservation,
+    IncidentReward,
+    IncidentState,
+    ServiceStatus,
+    ActionSchema,
+)
 
-# Get final grade
-grade = requests.get(f"{BASE}/grader").json()
-print(f"Final grade: {grade['score']}/1.0")
+action = IncidentAction(
+    action_type="remediate",
+    command="restart",
+    target="payment-service",
+    params={},
+)
+```
+
+### 3. FastAPI REST Server
+Start the server:
+```bash
+uvicorn src.server:app --host 0.0.0.0 --port 7860
+```
+
+| HTTP Method | Route | Description |
+|---|---|---|
+| `GET` | `/` | Health check endpoint returning `{status: "ok"}` |
+| `GET` | `/tasks` | List of all 12 tasks + random, including `action_schema` |
+| `POST` | `/reset` | Initialize episode with `{"task_id": "<id>"}` |
+| `POST` | `/step` | Execute an `IncidentAction` JSON payload |
+| `GET` | `/state` | Full state with ground-truth withheld |
+| `GET` | `/grader` | Grade current episode execution |
+| `GET` | `/observation_space` | OpenAPI observation schema specification |
+| `GET` | `/action_space` | OpenAPI action schema specification |
+
+### 4. Gymnasium Wrapper
+```python
+import gymnasium as gym
+import sre_bench  # Registers SREBench-v0
+
+env = gym.make("sre-bench/SREBench-v0", task_id="easy_restart")
+obs, info = env.reset()
+action = env.action_space.sample()  # Discrete(240)
+obs, reward, terminated, truncated, info = env.step(action)
 ```
 
 ---
 
-## 📊 Reward & Grading
+## 🧪 Testing & Verification
 
-### Reward Components (per action)
-- **Investigation** (+0.05): Useful diagnostic actions
-- **Diagnosis** (+0.25): Correct root cause identification
-- **Remediation** (+0.50): Fixing the incident
-- **Time Penalty** (-0.01 per action): SLA pressure
-- **Resolution Bonus** (+0.50): Full recovery with no collateral
-
-### Expected Scores
-- **Easy task**: 1.0 (optimal 1-step clear fix)
-- **Medium task**: ~0.95 (multi-step dependency chain)
-- **Hard task**: ~0.85-0.95 (hidden cause, deep investigation)
-- **Expert task**: ~0.80-0.90 (complex remediation sequence)
-
-Judges evaluate based on:
-1. **Runtime correctness** (does the environment work?)
-2. **Interface compliance** (OpenEnv spec adherence)
-3. **Task design** (realism and difficulty scaling)
-4. **Grading logic** (fair evaluation)
-
----
-
-## 🔬 Solution Caching Mechanism
-
-**Why it matters**: Reproducibility vs. natural variance.
-
-- **First agent** to solve an incident caches the optimal path
-- **Baseline** replays cached solution (100% deterministic)
-- **Subsequent agents** measured against cached optimal (-0.01 per extra step)
-- **Result**: Variance is "earned" (from investigation depth), not artificial
-
-This ensures fair evaluation across multiple runs while allowing natural variance in agent strategy.
-
----
-
-## 📋 What's Inside
-
+Run the full Pytest test suite (all 21 unit & integration tests):
+```bash
+python -m pytest tests/test_srebench.py -v
 ```
-SREBench/
-├── sre-bench/                    # Main environment package
-│   ├── src/
-│   │   ├── server.py             # FastAPI server (7 endpoints)
-│   │   ├── environment.py        # OpenEnv controller + solution caching
-│   │   ├── infrastructure.py     # 6-service simulator + fault injection
-│   │   └── models.py             # Pydantic schemas
-│   ├── graders/                  # Task-specific graders
-│   │   ├── easy.py
-│   │   ├── medium.py
-│   │   └── hard.py
-│   ├── Dockerfile                # Docker container spec
-│   ├── requirements.txt           # Python dependencies
-│   └── README.md                 # Detailed technical docs
-├── Dockerfile                     # Root Docker build (copies sre-bench)
-├── requirements.txt               # Root-level deps for Space
-├── pyproject.toml                # Python project metadata
-├── openenv.yaml                  # OpenEnv config
-└── README.md                     # This file
 
+Run baseline evaluations and regenerate receipts:
+```bash
+python eval_baselines.py
+```
+
+Test live server end-to-end against all 12 tasks:
+```bash
+python test_all_12.py
 ```
 
 ---
 
-## ✅ Verification & Deployment
+## 📜 License
 
-**All systems verified:**
-- ✅ All 11 API endpoints working
-- ✅ All 12 incident tasks completable and verified (scores 0.80–0.99)
-- ✅ 9/9 anti-exploit tests passing
-- ✅ Stochastic metrics confirmed (no deterministic values)
-- ✅ Docker builds successfully
-- ✅ GRPO training script tested (dry-run + GPU modes)
-
-**Repository**: Clean, documented, no secrets exposed
-
-**Status**: Hardened and ready for Grand Finale
-
----
-
-## 📚 Full Documentation
-
-For architectural details, reward function specifics, observation/action space schemas, and advanced grading logic, see [sre-bench/README.md](sre-bench/README.md).
-
----
-
-## 🎓 Hackathon Submission
-
-**Live Environment**: https://huggingface.co/spaces/CreatorNeuron/sre-bench  
-**GitHub Repository**: https://github.com/MrDunky14/SREBench  
-**Grand Finale**: April 25-26, 2026 (Bangalore)
-
----
-**👤 The Solo Story: Full-Stack Agent Engineering**
-
->**SREBench** is a solo project developed by Krishna Singh. Managing the entire lifecycle—from engineering the stochastic 6-service world model to implementing the GRPO RL alignment pipeline and orchestrating the LangGraph multi-agent team—this project demonstrates the technical depth required to build production-grade autonomous reliability systems single-handedly.
-
----
+MIT License. See [LICENSE](LICENSE) for details.

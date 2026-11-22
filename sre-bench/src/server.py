@@ -109,6 +109,8 @@ def api_docs():
             "POST /step": "Execute an action in the environment",
             "GET /state": "Get full internal state",
             "GET /grader": "Grade the current episode",
+            "GET /observation_space": "Get observation space specification",
+            "GET /action_space": "Get action space specification",
             "GET /leaderboard": "View test leaderboards",
             "POST /baseline": "Run baseline agent strategy",
             "GET /dashboard.html": "Interactive testing dashboard",
@@ -120,18 +122,19 @@ def api_docs():
 @app.get("/tasks")
 def get_tasks():
     """Get available tasks and action schema."""
-    return {
-        "tasks": [
-            {"id": tid, "name": cfg.get("description", tid), "difficulty": tid.split("_")[0],
-             "description": cfg["description"]}
-            for tid, cfg in INCIDENTS.items()
-        ] + [
-            {"id": "random", "name": "Random Incident",
-             "description": "Procedurally generated — a random fault is selected each episode.",
-             "difficulty": "random"}
-        ],
-        "action_schema": IncidentAction.schema(),
-    }
+    return env.get_tasks()
+
+
+@app.get("/observation_space")
+def get_observation_space():
+    """Get observation space specification."""
+    return env.get_observation_space()
+
+
+@app.get("/action_space")
+def get_action_space():
+    """Get action space specification."""
+    return env.get_action_space()
 
 
 @app.post("/reset")
@@ -204,13 +207,13 @@ def grade_episode(task_id: str = None, agent_name: str = "anonymous"):
     
     task_id = task_id or env.task_id
     
-    if task_id not in GRADERS:
-        raise HTTPException(status_code=400, detail=f"No grader for task: {task_id}")
+    if task_id == "random" or (task_id and task_id.startswith("random_compound")) or task_id not in GRADERS:
+        grader_fn = grade_universal
+    else:
+        grader_fn = GRADERS[task_id]
     
     try:
-        grader_fn = GRADERS[task_id]
-        
-        # Pass environment to grader so it can access solution_cache
+        # Pass environment to grader
         score = grader_fn(env)
         
         # Add to leaderboard
